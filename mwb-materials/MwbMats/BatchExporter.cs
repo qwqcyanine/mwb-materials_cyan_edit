@@ -35,7 +35,10 @@ namespace mwb_materials.MwbMats
 
             foreach (string folder in folders)
             {
-                if (folder.ToLower().EndsWith("output") || folder.ToLower().EndsWith("temp"))
+                string folderNameOnly = Path.GetFileName(folder);
+
+                if (string.Equals(folderNameOnly, "output", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(folderNameOnly, "temp", StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -74,8 +77,8 @@ namespace mwb_materials.MwbMats
 
             MaterialManipulation.SourceTextureSet textures = await MaterialManipulation.GenerateTextures(sanitizedFiles, props.GenerateProps);
 
-            string tempPath = path + "\\temp\\";
-            string outputPath = path + "\\output\\";
+            string tempPath = Path.Combine(path, "temp");
+            string outputPath = Path.Combine(path, "output");
 
             Directory.CreateDirectory(tempPath);
             Directory.CreateDirectory(outputPath);
@@ -92,7 +95,7 @@ namespace mwb_materials.MwbMats
 
                 if (props.bIncludeFolders)
                 {
-                    movePath += path.Replace(startPath, string.Empty);
+                    movePath = CombineWithRelativeFolder(movePath, startPath, path);
                 }
             }
 
@@ -100,40 +103,48 @@ namespace mwb_materials.MwbMats
             {
                 outputName = folderName + "_rgb";
 
-                textures.Albedo?.Save(tempPath + outputName + ".png", ImageFormat.Png);
+                string albedoPng = Path.Combine(tempPath, outputName + ".png");
+
+                textures.Albedo?.Save(albedoPng, ImageFormat.Png);
                 vmtValues.Add("ALBEDONAME", outputName);
 
-                await VtfCmdInterface.ExportFile(tempPath + outputName + ".png", outputPath, props.AlbedoCompression, !props.bAlbedoMipMaps, movePath, props.LogFunc);
+                await VtfCmdInterface.ExportFile(albedoPng, outputPath, props.AlbedoCompression, !props.bAlbedoMipMaps, movePath, props.LogFunc);
             }
 
             if (textures.Exponent != null)
             {
                 outputName = folderName + "_e";
 
-                textures.Exponent.Save(tempPath + outputName + ".png", ImageFormat.Png);
+                string exponentPng = Path.Combine(tempPath, outputName + ".png");
+
+                textures.Exponent.Save(exponentPng, ImageFormat.Png);
                 vmtValues.Add("EXPONENTNAME", outputName);
 
-                await VtfCmdInterface.ExportFile(tempPath + outputName + ".png", outputPath, props.ExponentCompression, !props.bExponentMipMaps, movePath, props.LogFunc);
+                await VtfCmdInterface.ExportFile(exponentPng, outputPath, props.ExponentCompression, !props.bExponentMipMaps, movePath, props.LogFunc);
             }
 
             if (textures.Normal != null)
             {
                 outputName = folderName + "_n";
 
-                textures.Normal?.Save(tempPath + outputName + ".png", ImageFormat.Png);
+                string normalPng = Path.Combine(tempPath, outputName + ".png");
+
+                textures.Normal?.Save(normalPng, ImageFormat.Png);
                 vmtValues.Add("NORMALNAME", outputName);
 
-                await VtfCmdInterface.ExportFile(tempPath + outputName + ".png", outputPath, props.NormalCompression, !props.bNormalMipMaps, movePath, props.LogFunc);
+                await VtfCmdInterface.ExportFile(normalPng, outputPath, props.NormalCompression, !props.bNormalMipMaps, movePath, props.LogFunc);
             }
 
             if (textures.Emissive != null)
             {
                 outputName = folderName + "_emissive";
 
-                textures.Emissive.Save(tempPath + outputName + ".png", ImageFormat.Png);
+                string emissivePng = Path.Combine(tempPath, outputName + ".png");
+
+                textures.Emissive.Save(emissivePng, ImageFormat.Png);
                 detailName = outputName;
 
-                await VtfCmdInterface.ExportFile(tempPath + outputName + ".png", outputPath, props.AlbedoCompression, !props.bAlbedoMipMaps, movePath, props.LogFunc);
+                await VtfCmdInterface.ExportFile(emissivePng, outputPath, props.AlbedoCompression, !props.bAlbedoMipMaps, movePath, props.LogFunc);
             }
 
             Color averageMetallicColor = textures.AverageMetallicColor;
@@ -155,7 +166,9 @@ namespace mwb_materials.MwbMats
 
             if (envPath != string.Empty)
             {
-                using (StreamWriter sw = File.CreateText(envPath + "\\" + envmapTexture.Name + ".vtf"))
+                Directory.CreateDirectory(envPath);
+
+                using (StreamWriter sw = File.CreateText(Path.Combine(envPath, envmapTexture.Name + ".vtf")))
                 {
                     sw.BaseStream.Write(envmapTexture.Content, 0, envmapTexture.Content.Length);
                 }
@@ -184,6 +197,18 @@ namespace mwb_materials.MwbMats
                 "    \"$detail\" \"" + detailPath + "\"\r\n" +
                 "    \"$detailscale\" \"1\"\r\n" +
                 "    \"$detailblendmode\" \"5\"";
+        }
+
+        private static string CombineWithRelativeFolder(string rootPath, string startPath, string currentPath)
+        {
+            string relativePath = currentPath.Substring(startPath.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+            if (string.IsNullOrEmpty(relativePath))
+            {
+                return rootPath;
+            }
+
+            return Path.Combine(rootPath, relativePath);
         }
     }
 }

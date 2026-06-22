@@ -33,16 +33,17 @@ namespace mwb_materials.MwbMats
             }
 
             byte[] newBytes = Encoding.UTF8.GetBytes(content);
+            string vmtName = Path.GetFileNameWithoutExtension(name) + ".vmt";
+            string vmtPath = Path.Combine(path, vmtName);
 
-            using (StreamWriter sw = File.CreateText(path + "\\" + name + ".vmt"))
+            using (StreamWriter sw = File.CreateText(vmtPath))
             {
                 sw.BaseStream.Write(newBytes, 0, newBytes.Length);
             }
 
             if (movePath != string.Empty)
             {
-                string fileSrc = path + "\\" + Path.GetFileNameWithoutExtension(name) + ".vmt";
-                string fileDest = movePath + "\\" + Path.GetFileNameWithoutExtension(name) + ".vmt";
+                string fileDest = Path.Combine(movePath, vmtName);
 
                 Directory.CreateDirectory(movePath);
 
@@ -51,7 +52,7 @@ namespace mwb_materials.MwbMats
                     File.Delete(fileDest);
                 }
 
-                File.Move(fileSrc, fileDest);
+                File.Move(vmtPath, fileDest);
             }
         }
 
@@ -59,7 +60,7 @@ namespace mwb_materials.MwbMats
         {
             SanitizeName(ref name);
 
-            using (StreamWriter sw = File.CreateText(path + "\\" + name + ".vmt"))
+            using (StreamWriter sw = File.CreateText(Path.Combine(path, Path.GetFileNameWithoutExtension(name) + ".vmt")))
             {
                 sw.BaseStream.Write(VmtBytes, 0, VmtBytes.Length);
             }

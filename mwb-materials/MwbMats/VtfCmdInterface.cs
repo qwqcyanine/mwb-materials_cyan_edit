@@ -34,7 +34,7 @@ namespace mwb_materials
             programInfo.UseShellExecute = false;
             programInfo.RedirectStandardOutput = true;
             programInfo.RedirectStandardError = true;
-            programInfo.FileName = "vtfcmd\\VTFCmd.exe";
+            programInfo.FileName = Path.Combine("vtfcmd", "VTFCmd.exe");
 
             programInfo.WorkingDirectory = Path.GetDirectoryName(file);
             programInfo.Arguments = string.Empty;
