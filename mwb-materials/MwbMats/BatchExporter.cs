@@ -24,6 +24,7 @@ namespace mwb_materials.MwbMats
             public bool bAlbedoMipMaps { get; internal set; }
             public bool bNormalMipMaps { get; internal set; }
             public bool bExponentMipMaps { get; internal set; }
+            public float AlphatestReference { get; internal set; }
             public Action<string> LogFunc { get; internal set; }
         }
 
@@ -77,6 +78,25 @@ namespace mwb_materials.MwbMats
 
             MaterialManipulation.SourceTextureSet textures = await MaterialManipulation.GenerateTextures(sanitizedFiles, props.GenerateProps);
 
+            //resolve opacity-related settings
+            MaterialManipulation.OpacityMode opacityMode = textures.OpacityMode;
+            string effectiveAlbedoCompression = props.AlbedoCompression;
+
+            if (opacityMode != MaterialManipulation.OpacityMode.None && textures.Albedo == null)
+            {
+                props.LogFunc?.Invoke("Warning: opacity mask provided without albedo texture; opacity will be ignored.");
+                opacityMode = MaterialManipulation.OpacityMode.None;
+            }
+
+            if (opacityMode != MaterialManipulation.OpacityMode.None)
+            {
+                if (effectiveAlbedoCompression == VtfCmdInterface.FormatDXT1)
+                {
+                    effectiveAlbedoCompression = VtfCmdInterface.FormatDXT5;
+                    props.LogFunc?.Invoke("Albedo compression upgraded from DXT1 to DXT5 (opacity requires alpha channel)");
+                }
+            }
+
             string tempPath = Path.Combine(path, "temp");
             string outputPath = Path.Combine(path, "output");
 
@@ -108,7 +128,7 @@ namespace mwb_materials.MwbMats
                 textures.Albedo?.Save(albedoPng, ImageFormat.Png);
                 vmtValues.Add("ALBEDONAME", outputName);
 
-                await VtfCmdInterface.ExportFile(albedoPng, outputPath, props.AlbedoCompression, !props.bAlbedoMipMaps, movePath, props.LogFunc);
+                await VtfCmdInterface.ExportFile(albedoPng, outputPath, effectiveAlbedoCompression, !props.bAlbedoMipMaps, movePath, props.LogFunc);
             }
 
             if (textures.Exponent != null)
@@ -156,6 +176,23 @@ namespace mwb_materials.MwbMats
             vmtValues.Add("EXPORTPATH", exportPath);
             vmtValues.Add("DETAILBLOCK", GetDetailBlock(exportPath, detailName));
 
+            //opacity
+            if (opacityMode == MaterialManipulation.OpacityMode.Alphatest)
+            {
+                vmtValues.Add("BLENDTINTBYBASEALPHA", "0");
+                vmtValues.Add("OPACITYBLOCK", GetOpacityBlock(true, props.AlphatestReference));
+            }
+            else if (opacityMode == MaterialManipulation.OpacityMode.Translucent)
+            {
+                vmtValues.Add("BLENDTINTBYBASEALPHA", "0");
+                vmtValues.Add("OPACITYBLOCK", GetOpacityBlock(false, 0.0f));
+            }
+            else
+            {
+                vmtValues.Add("BLENDTINTBYBASEALPHA", "1");
+                vmtValues.Add("OPACITYBLOCK", string.Empty);
+            }
+
             //envmap
             VmtUtils.EnvMapFile envmapTexture = VmtUtils.GetEnvMapTextureFromRoughness(averageRoughness);
             vmtValues.Add("ENVMAP", envmapTexture.Name);
@@ -197,6 +234,21 @@ namespace mwb_materials.MwbMats
                 "    \"$detail\" \"" + detailPath + "\"\r\n" +
                 "    \"$detailscale\" \"1\"\r\n" +
                 "    \"$detailblendmode\" \"5\"";
+        }
+
+        private static string GetOpacityBlock(bool bAlphatest, float alphatestReference)
+        {
+            if (bAlphatest)
+            {
+                string refValue = Math.Round(alphatestReference, 2).ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+                return
+                    "    \"$alphatest\" \"1\"\r\n" +
+                    "    \"$alphatestreference\" \"" + refValue + "\"\r\n" +
+                    "    \"$allowalphatocoverage\" \"1\"";
+            }
+
+            return "    \"$translucent\" \"1\"";
         }
 
         private static string CombineWithRelativeFolder(string rootPath, string startPath, string currentPath)

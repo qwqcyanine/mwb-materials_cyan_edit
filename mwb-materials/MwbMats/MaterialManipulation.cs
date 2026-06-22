@@ -31,6 +31,8 @@ namespace mwb_materials
         private static readonly string MetalnessAltNomenclature = "_m";
         private static readonly string NormalNomenclature = "_n";
         private static readonly string EmissiveNomenclature = "_e";
+        private static readonly string AlphatestNomenclature = "_t";
+        private static readonly string TranslucentNomenclature = "_opacity";
 
         public enum TextureChannel
         {
@@ -49,9 +51,16 @@ namespace mwb_materials
             Divide
         }
 
+        public enum OpacityMode
+        {
+            None,
+            Alphatest,
+            Translucent
+        }
+
         public struct SourceTextureSet : IDisposable
         {
-            public SourceTextureSet(Bitmap albedo, Bitmap exponent, Bitmap normal, Bitmap emissive, Color metallicColor, double averageRoughness)
+            public SourceTextureSet(Bitmap albedo, Bitmap exponent, Bitmap normal, Bitmap emissive, Color metallicColor, double averageRoughness, OpacityMode opacityMode)
             {
                 Albedo = albedo;
                 Exponent = exponent;
@@ -59,6 +68,7 @@ namespace mwb_materials
                 Emissive = emissive;
                 AverageMetallicColor = metallicColor;
                 AverageRoughness = averageRoughness;
+                OpacityMode = opacityMode;
             }
 
             public Bitmap Albedo { get; }
@@ -67,6 +77,7 @@ namespace mwb_materials
             public Bitmap Emissive { get; }
             public Color AverageMetallicColor { get; }
             public double AverageRoughness { get; }
+            public OpacityMode OpacityMode { get; }
 
             public void Dispose()
             {
@@ -174,7 +185,7 @@ namespace mwb_materials
             }
         }
 
-        private static FastBitmap CreateSourceAlbedo(FastBitmap albedo, FastBitmap ambientOcclusion, FastBitmap metalness, FastBitmap roughness, ref GenerateProperties props)
+        private static FastBitmap CreateSourceAlbedo(FastBitmap albedo, FastBitmap ambientOcclusion, FastBitmap metalness, FastBitmap roughness, FastBitmap opacity, ref GenerateProperties props)
         {
             if (albedo == null)
             {
@@ -191,7 +202,12 @@ namespace mwb_materials
                 ApplyAmbientOcclusion(sourceAlbedo, ambientOcclusion, props.AoAlbedoStrength);
             }
 
-            if (metalness != null)
+            if (opacity != null)
+            {
+                //opacity mask -> basetexture alpha (white = opaque, black = transparent)
+                DumpGrayscaleInChannel(sourceAlbedo, opacity, TextureChannel.Alpha);
+            }
+            else if (metalness != null)
             {
                 //color2
                 for (int cursor = 0; cursor < sourceAlbedo.Bytes.Length; cursor += 4)
@@ -310,6 +326,7 @@ namespace mwb_materials
         {
             public bool bAoMasks { get; internal set; }
             public bool bOpenGlNormal { get; internal set; }
+            public bool bInvertOpacity { get; internal set; }
             public int ClampSize { get; internal set; }
             public float AoAlbedoStrength { get; internal set; }
         }
@@ -420,6 +437,8 @@ namespace mwb_materials
             FastBitmap metalness = null;
             FastBitmap normal = null;
             FastBitmap emissive = null;
+            FastBitmap alphatestOpacity = null;
+            FastBitmap translucentOpacity = null;
 
             int biggestWidth = 0;
             int biggestHeight = 0;
@@ -476,6 +495,38 @@ namespace mwb_materials
                     emissive = LoadImage(file);
                     SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, emissive);
                 }
+
+                if (name.EndsWith(AlphatestNomenclature))
+                {
+                    alphatestOpacity = LoadImage(file);
+                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, alphatestOpacity);
+                }
+
+                if (name.EndsWith(TranslucentNomenclature))
+                {
+                    translucentOpacity = LoadImage(file);
+                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, translucentOpacity);
+                }
+            }
+
+            //resolve opacity mode (prefer alphatest if both are present)
+            FastBitmap opacity = null;
+            OpacityMode opacityMode = OpacityMode.None;
+
+            if (alphatestOpacity != null)
+            {
+                opacity = alphatestOpacity;
+                opacityMode = OpacityMode.Alphatest;
+
+                if (translucentOpacity != null)
+                {
+                    translucentOpacity.Dispose();
+                }
+            }
+            else if (translucentOpacity != null)
+            {
+                opacity = translucentOpacity;
+                opacityMode = OpacityMode.Translucent;
             }
 
             //resize textures
@@ -489,8 +540,9 @@ namespace mwb_materials
             ResizeIfSmaller(metalness, biggestWidth, biggestHeight);
             ResizeIfSmaller(normal, biggestWidth, biggestHeight);
             ResizeIfSmaller(emissive, biggestWidth, biggestHeight);
+            ResizeIfSmaller(opacity, biggestWidth, biggestHeight);
 
-            ResizeToClampSize(props.ClampSize, new FastBitmap[] { albedo, ambientOcclusion, roughness, gloss, metalness, normal, emissive });
+            ResizeToClampSize(props.ClampSize, new FastBitmap[] { albedo, ambientOcclusion, roughness, gloss, metalness, normal, emissive, opacity });
 
             //invert roughness
             Task roughnessTask = Task.Run(() =>
@@ -513,7 +565,19 @@ namespace mwb_materials
                 });  
             }
 
-            await normalOpenGlTask; await roughnessTask;
+            Task opacityInvertTask = Task.CompletedTask;
+
+            if (props.bInvertOpacity)
+            {
+                opacityInvertTask = Task.Run(() =>
+                {
+                    opacity?.Start(ImageLockMode.ReadWrite);
+                    Invert(opacity);
+                    opacity?.Stop();
+                });
+            }
+
+            await normalOpenGlTask; await roughnessTask; await opacityInvertTask;
 
             //start edits
             albedo?.Start(ImageLockMode.ReadOnly);
@@ -522,10 +586,11 @@ namespace mwb_materials
             gloss?.Start(ImageLockMode.ReadOnly);
             metalness?.Start(ImageLockMode.ReadOnly);
             normal?.Start(ImageLockMode.ReadOnly);
+            opacity?.Start(ImageLockMode.ReadOnly);
 
             Task<FastBitmap> albedoTask = Task.Run(() =>
             {
-                return CreateSourceAlbedo(albedo, ambientOcclusion, metalness, (gloss != null) ? gloss : roughness, ref props);
+                return CreateSourceAlbedo(albedo, ambientOcclusion, metalness, (gloss != null) ? gloss : roughness, opacity, ref props);
             });
 
             Task<FastBitmap> normalTask = Task.Run(() =>
@@ -561,8 +626,9 @@ namespace mwb_materials
             gloss?.StopAndDispose();
             metalness?.StopAndDispose();
             normal?.StopAndDispose();
+            opacity?.StopAndDispose();
 
-            return new SourceTextureSet(sourceAlbedo?.Source, sourceExponent?.Source, sourceNormal?.Source, emissive?.Source, averageMetallicColor, averageRoughness);
+            return new SourceTextureSet(sourceAlbedo?.Source, sourceExponent?.Source, sourceNormal?.Source, emissive?.Source, averageMetallicColor, averageRoughness, opacityMode);
         }
     }
 }

@@ -21,6 +21,9 @@ namespace mwb_materials
         private TextBox ConsoleTextBox;
         private TrackBar AoStrengthTrackBar;
         private Label AoStrengthValueLabel;
+        private TrackBar AlphatestReferenceTrackBar;
+        private Label AlphatestReferenceValueLabel;
+        private CheckBox InvertOpacityCheck;
         private ContextMenuStrip TitleBarMenu;
         private bool bLoadingSettings;
 
@@ -46,26 +49,37 @@ namespace mwb_materials
         private void ModernizeLayout()
         {
             AutoSize = false;
-            ClientSize = new Size(520, 620);
+            ClientSize = new Size(520, 650);
             Padding = new Padding(12);
 
             GroupBox settingsGroup = GetGroupBox("Settings");
             GroupBox vtfsGroup = GetGroupBox("VTFs");
             GroupBox batchGroup = GetGroupBox("Batch");
 
-            LayoutGroup(settingsGroup, 12, 12, 496, 204);
-            LayoutGroup(vtfsGroup, 12, 226, 496, 130);
-            LayoutGroup(batchGroup, 12, 368, 496, 86);
+            LayoutGroup(settingsGroup, 12, 12, 496, 234);
+            LayoutGroup(vtfsGroup, 12, 256, 496, 130);
+            LayoutGroup(batchGroup, 12, 398, 496, 86);
 
             AoCheck.SetBounds(8, 19, 220, 20);
             OpenGlNormalCheck.SetBounds(8, 43, 240, 20);
+
+            InvertOpacityCheck = new CheckBox()
+            {
+                AutoSize = false,
+                ForeColor = System.Drawing.SystemColors.ActiveCaptionText,
+                Text = "Invert opacity"
+            };
+            InvertOpacityCheck.SetBounds(260, 43, 228, 20);
+            settingsGroup.Controls.Add(InvertOpacityCheck);
+
             AddAoStrengthControls(settingsGroup);
-            SetGroupLabel(settingsGroup, "Envmaps folder", 8, 99, 120);
-            ResizeTextBox(EnvMapsDestination, 8, 116, 480);
-            SetGroupLabel(settingsGroup, "Output destination", 8, 141, 130);
-            ResizeTextBox(VmtDestinationPath, 8, 158, 480);
-            label2.SetBounds(8, 184, 92, 16);
-            ClampComboBox.SetBounds(108, 180, 120, 21);
+            AddAlphatestReferenceControls(settingsGroup);
+            SetGroupLabel(settingsGroup, "Envmaps folder", 8, 129, 120);
+            ResizeTextBox(EnvMapsDestination, 8, 146, 480);
+            SetGroupLabel(settingsGroup, "Output destination", 8, 171, 130);
+            ResizeTextBox(VmtDestinationPath, 8, 188, 480);
+            label2.SetBounds(8, 214, 92, 16);
+            ClampComboBox.SetBounds(108, 210, 120, 21);
 
             LayoutVtfControls(vtfsGroup);
             BatchIncludeFoldersCheck.SetBounds(10, 21, 225, 20);
@@ -117,6 +131,44 @@ namespace mwb_materials
             settingsGroup.Controls.Add(label);
             settingsGroup.Controls.Add(AoStrengthTrackBar);
             settingsGroup.Controls.Add(AoStrengthValueLabel);
+        }
+
+        private void AddAlphatestReferenceControls(GroupBox settingsGroup)
+        {
+            Label label = new Label()
+            {
+                AutoSize = false,
+                Text = "Alphatest",
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            label.SetBounds(8, 100, 92, 18);
+
+            AlphatestReferenceTrackBar = new TrackBar()
+            {
+                AutoSize = false,
+                Minimum = 0,
+                Maximum = 100,
+                TickFrequency = 25,
+                Value = 50
+            };
+            AlphatestReferenceTrackBar.SetBounds(108, 93, 280, 30);
+
+            AlphatestReferenceValueLabel = new Label()
+            {
+                AutoSize = false,
+                Text = "0.50",
+                TextAlign = ContentAlignment.MiddleRight
+            };
+            AlphatestReferenceValueLabel.SetBounds(398, 100, 90, 18);
+
+            AlphatestReferenceTrackBar.Scroll += (sender, args) =>
+            {
+                UpdateAlphatestReferenceLabel();
+            };
+
+            settingsGroup.Controls.Add(label);
+            settingsGroup.Controls.Add(AlphatestReferenceTrackBar);
+            settingsGroup.Controls.Add(AlphatestReferenceValueLabel);
         }
 
         private GroupBox GetGroupBox(string text)
@@ -227,6 +279,11 @@ namespace mwb_materials
             AoStrengthValueLabel.Text = AoStrengthTrackBar.Value + "%";
         }
 
+        private void UpdateAlphatestReferenceLabel()
+        {
+            AlphatestReferenceValueLabel.Text = (AlphatestReferenceTrackBar.Value / 100.0).ToString("0.00");
+        }
+
         private void SetBatchControlsEnabled(bool enabled)
         {
             foreach (Control control in Controls)
@@ -270,6 +327,7 @@ namespace mwb_materials
                     {
                         bAoMasks = AoCheck.Checked,
                         bOpenGlNormal = OpenGlNormalCheck.Checked,
+                        bInvertOpacity = InvertOpacityCheck.Checked,
                         ClampSize = int.Parse(ClampComboBox.Text),
                         AoAlbedoStrength = AoStrengthTrackBar.Value / 100.0f
                     };
@@ -286,6 +344,7 @@ namespace mwb_materials
                         bAlbedoMipMaps = AlbedoMipMapsCheck.Checked,
                         bNormalMipMaps = NormalMipMapsCheck.Checked,
                         bExponentMipMaps = ExponentMipMapsCheck.Checked,
+                        AlphatestReference = AlphatestReferenceTrackBar.Value / 100.0f,
                         GenerateProps = props,
                         LogFunc = AppendConsoleLine
                     };
@@ -382,6 +441,8 @@ namespace mwb_materials
             ToolTip.SetToolTip(AlbedoLabel, "basetexture");
             ToolTip.SetToolTip(NormalLabel, "bumpmap");
             ToolTip.SetToolTip(ExponentLabel, "phongexponent");
+            ToolTip.SetToolTip(AlphatestReferenceTrackBar, "$alphatestreference (threshold for $alphatest)");
+            ToolTip.SetToolTip(InvertOpacityCheck, "Invert the opacity mask (black becomes opaque, white becomes transparent)");
         }
 
         private void LoadSettings()
@@ -394,6 +455,7 @@ namespace mwb_materials
 
                 AoCheck.Checked = settings.AoMasks;
                 OpenGlNormalCheck.Checked = settings.OpenGlNormal;
+                InvertOpacityCheck.Checked = settings.InvertOpacity;
                 BatchMoveOutputCheck.Checked = settings.BatchMoveOutput;
                 BatchIncludeFoldersCheck.Checked = settings.BatchIncludeFolders;
                 AlbedoMipMapsCheck.Checked = settings.AlbedoMipMaps;
@@ -407,6 +469,9 @@ namespace mwb_materials
 
                 AoStrengthTrackBar.Value = Math.Min(Math.Max(settings.AoAlbedoStrength, AoStrengthTrackBar.Minimum), AoStrengthTrackBar.Maximum);
                 UpdateAoStrengthLabel();
+
+                AlphatestReferenceTrackBar.Value = Math.Min(Math.Max(settings.AlphatestReference, AlphatestReferenceTrackBar.Minimum), AlphatestReferenceTrackBar.Maximum);
+                UpdateAlphatestReferenceLabel();
 
                 EnvMapsDestination.Text = settings.EnvMapsFolder;
                 VmtDestinationPath.Text = settings.DestinationFolder;
@@ -426,6 +491,7 @@ namespace mwb_materials
             {
                 AoCheck.Checked = true;
                 OpenGlNormalCheck.Checked = false;
+                InvertOpacityCheck.Checked = false;
                 BatchMoveOutputCheck.Checked = true;
                 BatchIncludeFoldersCheck.Checked = false;
                 AlbedoMipMapsCheck.Checked = true;
@@ -439,6 +505,9 @@ namespace mwb_materials
 
                 AoStrengthTrackBar.Value = 100;
                 UpdateAoStrengthLabel();
+
+                AlphatestReferenceTrackBar.Value = 50;
+                UpdateAlphatestReferenceLabel();
             }
             finally
             {
@@ -452,6 +521,7 @@ namespace mwb_materials
         {
             AoCheck.CheckedChanged += SaveSettingsOnChange;
             OpenGlNormalCheck.CheckedChanged += SaveSettingsOnChange;
+            InvertOpacityCheck.CheckedChanged += SaveSettingsOnChange;
             BatchMoveOutputCheck.CheckedChanged += SaveSettingsOnChange;
             BatchIncludeFoldersCheck.CheckedChanged += SaveSettingsOnChange;
             AlbedoMipMapsCheck.CheckedChanged += SaveSettingsOnChange;
@@ -466,6 +536,12 @@ namespace mwb_materials
             AoStrengthTrackBar.ValueChanged += (sender, args) =>
             {
                 UpdateAoStrengthLabel();
+                SaveSettings();
+            };
+
+            AlphatestReferenceTrackBar.ValueChanged += (sender, args) =>
+            {
+                UpdateAlphatestReferenceLabel();
                 SaveSettings();
             };
         }
@@ -494,7 +570,9 @@ namespace mwb_materials
             settings.EnvMapsFolder = EnvMapsDestination.Text;
             settings.AoMasks = AoCheck.Checked;
             settings.OpenGlNormal = OpenGlNormalCheck.Checked;
+            settings.InvertOpacity = InvertOpacityCheck.Checked;
             settings.AoAlbedoStrength = AoStrengthTrackBar.Value;
+            settings.AlphatestReference = AlphatestReferenceTrackBar.Value;
             settings.ClampSize = ClampComboBox.Text;
             settings.BatchMoveOutput = BatchMoveOutputCheck.Checked;
             settings.BatchIncludeFolders = BatchIncludeFoldersCheck.Checked;

@@ -12,12 +12,16 @@ In that folder you're going to place a few textures:
 - metalness (**_m** or **_alpha**)
 - ambient occlusion (**_o** or **_ao**)
 - emissive/glow (**_e**)
+- alphatest opacity (**_t**)
+- translucent opacity (**_opacity**)
 
 ![help2](https://cdn.discordapp.com/attachments/1137688979743981648/1137690447884603482/image.png)
 
 **Remember to rename the images by adding the texture type at the end of their names (refer to list above).**
 
 Emissive textures should be mostly black, with only the glowing parts colored. Darker colors glow less, and pure black will not glow.
+
+Opacity textures use white for opaque and black for transparent. Use _t for `$alphatest` or _opacity for `$translucent`. When an opacity mask is present, the basetexture alpha carries opacity instead of metalness, so `$blendtintbybasealpha` is disabled. The Alphatest slider controls the `$alphatestreference` threshold (0.0–1.0, default 0.5).
 
 After that, you can press the Open Folders button and select your folder.
 
@@ -83,5 +87,4 @@ That'd be nice but no.
 - Phong albedo boost is only available in CS:GO and Garry's Mod, you can use phong boost in other games.  
 - Manual adjustments of the vmts are required sometimes.
 - Completely glossy materials aren't possible with a phong exponent texture (max is 150 - way too diffuse).
-- Opacity is not an option with the current vmt setup.
 - Note that every game/engine has its own PBR implementation; this means results may differ from your reference pictures. The tool tends to be more accurate when assets are rendered using Substance, Sketchfab, Maya or 3ds Max.

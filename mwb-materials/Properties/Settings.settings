@@ -14,8 +14,14 @@
     <Setting Name="OpenGlNormal" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">False</Value>
     </Setting>
+    <Setting Name="InvertOpacity" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
     <Setting Name="AoAlbedoStrength" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">100</Value>
+    </Setting>
+    <Setting Name="AlphatestReference" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">50</Value>
     </Setting>
     <Setting Name="ClampSize" Type="System.String" Scope="User">
       <Value Profile="(Default)">4096</Value>

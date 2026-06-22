@@ -73,6 +73,18 @@ namespace mwb_materials.Properties {
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool InvertOpacity {
+            get {
+                return ((bool)(this["InvertOpacity"]));
+            }
+            set {
+                this["InvertOpacity"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("100")]
         public int AoAlbedoStrength {
             get {
@@ -80,6 +92,18 @@ namespace mwb_materials.Properties {
             }
             set {
                 this["AoAlbedoStrength"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("50")]
+        public int AlphatestReference {
+            get {
+                return ((int)(this["AlphatestReference"]));
+            }
+            set {
+                this["AlphatestReference"] = value;
             }
         }
 
