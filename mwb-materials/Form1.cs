@@ -21,6 +21,7 @@ namespace mwb_materials
         private TextBox ConsoleTextBox;
         private TrackBar AoStrengthTrackBar;
         private Label AoStrengthValueLabel;
+        private bool bLoadingSettings;
 
         private ToolTip ToolTip = new ToolTip()
         {
@@ -37,6 +38,7 @@ namespace mwb_materials
             ModernizeLayout();
             AddConsole();
             UiTheme.Apply(this);
+            FormClosing += Form1_FormClosing;
         }
 
         private void ModernizeLayout()
@@ -100,7 +102,7 @@ namespace mwb_materials
 
             AoStrengthTrackBar.Scroll += (sender, args) =>
             {
-                AoStrengthValueLabel.Text = AoStrengthTrackBar.Value + "%";
+                UpdateAoStrengthLabel();
             };
 
             settingsGroup.Controls.Add(label);
@@ -209,6 +211,11 @@ namespace mwb_materials
             }
 
             ConsoleTextBox.AppendText("[" + DateTime.Now.ToString("HH:mm:ss") + "] " + message + Environment.NewLine);
+        }
+
+        private void UpdateAoStrengthLabel()
+        {
+            AoStrengthValueLabel.Text = AoStrengthTrackBar.Value + "%";
         }
 
         private void SetBatchControlsEnabled(bool enabled)
@@ -355,22 +362,121 @@ namespace mwb_materials
             ExponentCompression.Items.AddRange(compressionFormats);
             ExponentCompression.SelectedIndex = 0;
 
-            VmtDestinationPath.Text = Properties.Settings.Default.DestinationFolder;
-
             ClampComboBox.Items.AddRange(new string[] { "4096", "2048", "1024", "512" });
             ClampComboBox.SelectedIndex = 0;
 
-            EnvMapsDestination.Text = Properties.Settings.Default.EnvMapsFolder;
-            ToolTip.SetToolTip(EnvMapsDestination, EnvMapsDestination.Text);
-
-            VmtDestinationPath.Text = Properties.Settings.Default.DestinationFolder;
-            ToolTip.SetToolTip(VmtDestinationPath, VmtDestinationPath.Text);
+            LoadSettings();
+            RegisterSettingsEvents();
 
             HelpButtonClicked += Form1_HelpButtonClicked;
 
             ToolTip.SetToolTip(AlbedoLabel, "basetexture");
             ToolTip.SetToolTip(NormalLabel, "bumpmap");
             ToolTip.SetToolTip(ExponentLabel, "phongexponent");
+        }
+
+        private void LoadSettings()
+        {
+            bLoadingSettings = true;
+
+            try
+            {
+                Properties.Settings settings = Properties.Settings.Default;
+
+                AoCheck.Checked = settings.AoMasks;
+                OpenGlNormalCheck.Checked = settings.OpenGlNormal;
+                BatchMoveOutputCheck.Checked = settings.BatchMoveOutput;
+                BatchIncludeFoldersCheck.Checked = settings.BatchIncludeFolders;
+                AlbedoMipMapsCheck.Checked = settings.AlbedoMipMaps;
+                NormalMipMapsCheck.Checked = settings.NormalMipMaps;
+                ExponentMipMapsCheck.Checked = settings.ExponentMipMaps;
+
+                SetComboBoxValue(AlbedoCompression, settings.AlbedoCompression, VtfCmdInterface.FormatDXT5);
+                SetComboBoxValue(NormalCompression, settings.NormalCompression, VtfCmdInterface.FormatRGBA8888);
+                SetComboBoxValue(ExponentCompression, settings.ExponentCompression, VtfCmdInterface.FormatDXT5);
+                SetComboBoxValue(ClampComboBox, settings.ClampSize, "4096");
+
+                AoStrengthTrackBar.Value = Math.Min(Math.Max(settings.AoAlbedoStrength, AoStrengthTrackBar.Minimum), AoStrengthTrackBar.Maximum);
+                UpdateAoStrengthLabel();
+
+                EnvMapsDestination.Text = settings.EnvMapsFolder;
+                VmtDestinationPath.Text = settings.DestinationFolder;
+                UpdatePathToolTips();
+            }
+            finally
+            {
+                bLoadingSettings = false;
+            }
+        }
+
+        private void RegisterSettingsEvents()
+        {
+            AoCheck.CheckedChanged += SaveSettingsOnChange;
+            OpenGlNormalCheck.CheckedChanged += SaveSettingsOnChange;
+            BatchMoveOutputCheck.CheckedChanged += SaveSettingsOnChange;
+            BatchIncludeFoldersCheck.CheckedChanged += SaveSettingsOnChange;
+            AlbedoMipMapsCheck.CheckedChanged += SaveSettingsOnChange;
+            NormalMipMapsCheck.CheckedChanged += SaveSettingsOnChange;
+            ExponentMipMapsCheck.CheckedChanged += SaveSettingsOnChange;
+
+            AlbedoCompression.SelectedIndexChanged += SaveSettingsOnChange;
+            NormalCompression.SelectedIndexChanged += SaveSettingsOnChange;
+            ExponentCompression.SelectedIndexChanged += SaveSettingsOnChange;
+            ClampComboBox.SelectedIndexChanged += SaveSettingsOnChange;
+
+            AoStrengthTrackBar.ValueChanged += (sender, args) =>
+            {
+                UpdateAoStrengthLabel();
+                SaveSettings();
+            };
+        }
+
+        private void SetComboBoxValue(ComboBox comboBox, string value, string fallback)
+        {
+            string selectedValue = comboBox.Items.Contains(value) ? value : fallback;
+            comboBox.SelectedItem = selectedValue;
+        }
+
+        private void SaveSettingsOnChange(object sender, EventArgs e)
+        {
+            SaveSettings();
+        }
+
+        private void SaveSettings()
+        {
+            if (bLoadingSettings)
+            {
+                return;
+            }
+
+            Properties.Settings settings = Properties.Settings.Default;
+
+            settings.DestinationFolder = VmtDestinationPath.Text;
+            settings.EnvMapsFolder = EnvMapsDestination.Text;
+            settings.AoMasks = AoCheck.Checked;
+            settings.OpenGlNormal = OpenGlNormalCheck.Checked;
+            settings.AoAlbedoStrength = AoStrengthTrackBar.Value;
+            settings.ClampSize = ClampComboBox.Text;
+            settings.BatchMoveOutput = BatchMoveOutputCheck.Checked;
+            settings.BatchIncludeFolders = BatchIncludeFoldersCheck.Checked;
+            settings.AlbedoCompression = AlbedoCompression.Text;
+            settings.NormalCompression = NormalCompression.Text;
+            settings.ExponentCompression = ExponentCompression.Text;
+            settings.AlbedoMipMaps = AlbedoMipMapsCheck.Checked;
+            settings.NormalMipMaps = NormalMipMapsCheck.Checked;
+            settings.ExponentMipMaps = ExponentMipMapsCheck.Checked;
+            settings.Save();
+        }
+
+        private void UpdatePathToolTips()
+        {
+            ToolTip.SetToolTip(EnvMapsDestination, EnvMapsDestination.Text);
+            ToolTip.SetToolTip(VmtDestinationPath, VmtDestinationPath.Text);
+        }
+
+        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            SaveSettings();
         }
 
         private void Form1_HelpButtonClicked(object sender, EventArgs e)
@@ -380,16 +486,14 @@ namespace mwb_materials
 
         private void EnvMapsDestination_TextChanged(object sender, EventArgs e)
         {
-            Properties.Settings.Default.EnvMapsFolder = EnvMapsDestination.Text;
-            ToolTip.SetToolTip(EnvMapsDestination, EnvMapsDestination.Text);
-            Properties.Settings.Default.Save();
+            UpdatePathToolTips();
+            SaveSettings();
         }
 
         private void VmtDestinationPath_TextChanged(object sender, EventArgs e)
         {
-            Properties.Settings.Default.DestinationFolder = VmtDestinationPath.Text;
-            ToolTip.SetToolTip(VmtDestinationPath, VmtDestinationPath.Text);
-            Properties.Settings.Default.Save();
+            UpdatePathToolTips();
+            SaveSettings();
         }
     }
 }

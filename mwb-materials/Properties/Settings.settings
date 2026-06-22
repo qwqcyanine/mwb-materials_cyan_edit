@@ -8,5 +8,41 @@
     <Setting Name="EnvMapsFolder" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>
+    <Setting Name="AoMasks" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="OpenGlNormal" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="AoAlbedoStrength" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">100</Value>
+    </Setting>
+    <Setting Name="ClampSize" Type="System.String" Scope="User">
+      <Value Profile="(Default)">4096</Value>
+    </Setting>
+    <Setting Name="BatchMoveOutput" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="BatchIncludeFolders" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="AlbedoCompression" Type="System.String" Scope="User">
+      <Value Profile="(Default)">DXT5</Value>
+    </Setting>
+    <Setting Name="NormalCompression" Type="System.String" Scope="User">
+      <Value Profile="(Default)">RGBA8888</Value>
+    </Setting>
+    <Setting Name="ExponentCompression" Type="System.String" Scope="User">
+      <Value Profile="(Default)">DXT5</Value>
+    </Setting>
+    <Setting Name="AlbedoMipMaps" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="NormalMipMaps" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="ExponentMipMaps" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
   </Settings>
 </SettingsFile>
