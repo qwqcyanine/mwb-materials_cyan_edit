@@ -74,6 +74,18 @@ namespace mwb_materials.Properties {
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool InvertNormalBlue {
+            get {
+                return ((bool)(this["InvertNormalBlue"]));
+            }
+            set {
+                this["InvertNormalBlue"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
         public bool InvertOpacity {
             get {
                 return ((bool)(this["InvertOpacity"]));

@@ -331,6 +331,7 @@ namespace mwb_materials
         {
             public bool bAoMasks { get; internal set; }
             public bool bOpenGlNormal { get; internal set; }
+            public bool bInvertNormalBlue { get; internal set; }
             public bool bInvertOpacity { get; internal set; }
             public int ClampSize { get; internal set; }
             public float AoAlbedoStrength { get; internal set; }
@@ -559,13 +560,22 @@ namespace mwb_materials
 
             Task normalOpenGlTask = Task.CompletedTask;
 
-            if (props.bOpenGlNormal)
+            if (props.bOpenGlNormal || props.bInvertNormalBlue)
             {
-                //invert green channel
                 normalOpenGlTask = Task.Run(() =>
                 {
                     normal?.Start(ImageLockMode.ReadWrite);
-                    Invert(normal, TextureChannel.Green);
+
+                    if (props.bOpenGlNormal)
+                    {
+                        Invert(normal, TextureChannel.Green);
+                    }
+
+                    if (props.bInvertNormalBlue)
+                    {
+                        Invert(normal, TextureChannel.Blue);
+                    }
+
                     normal?.Stop();
                 });  
             }

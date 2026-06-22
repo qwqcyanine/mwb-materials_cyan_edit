@@ -24,6 +24,7 @@ namespace mwb_materials
         private TrackBar AlphatestReferenceTrackBar;
         private Label AlphatestReferenceValueLabel;
         private CheckBox InvertOpacityCheck;
+        private CheckBox InvertNormalBlueCheck;
         private ContextMenuStrip TitleBarMenu;
         private bool bLoadingSettings;
 
@@ -62,6 +63,15 @@ namespace mwb_materials
 
             AoCheck.SetBounds(8, 19, 220, 20);
             OpenGlNormalCheck.SetBounds(8, 43, 240, 20);
+
+            InvertNormalBlueCheck = new CheckBox()
+            {
+                AutoSize = false,
+                ForeColor = System.Drawing.SystemColors.ActiveCaptionText,
+                Text = "Invert normal blue"
+            };
+            InvertNormalBlueCheck.SetBounds(260, 19, 228, 20);
+            settingsGroup.Controls.Add(InvertNormalBlueCheck);
 
             InvertOpacityCheck = new CheckBox()
             {
@@ -327,6 +337,7 @@ namespace mwb_materials
                     {
                         bAoMasks = AoCheck.Checked,
                         bOpenGlNormal = OpenGlNormalCheck.Checked,
+                        bInvertNormalBlue = InvertNormalBlueCheck.Checked,
                         bInvertOpacity = InvertOpacityCheck.Checked,
                         ClampSize = int.Parse(ClampComboBox.Text),
                         AoAlbedoStrength = AoStrengthTrackBar.Value / 100.0f
@@ -443,6 +454,7 @@ namespace mwb_materials
             ToolTip.SetToolTip(ExponentLabel, "phongexponent");
             ToolTip.SetToolTip(AlphatestReferenceTrackBar, "$alphatestreference (threshold for $alphatest)");
             ToolTip.SetToolTip(InvertOpacityCheck, "Invert the opacity mask (black becomes opaque, white becomes transparent)");
+            ToolTip.SetToolTip(InvertNormalBlueCheck, "Invert the blue channel of the normal map");
         }
 
         private void LoadSettings()
@@ -455,6 +467,7 @@ namespace mwb_materials
 
                 AoCheck.Checked = settings.AoMasks;
                 OpenGlNormalCheck.Checked = settings.OpenGlNormal;
+                InvertNormalBlueCheck.Checked = settings.InvertNormalBlue;
                 InvertOpacityCheck.Checked = settings.InvertOpacity;
                 BatchMoveOutputCheck.Checked = settings.BatchMoveOutput;
                 BatchIncludeFoldersCheck.Checked = settings.BatchIncludeFolders;
@@ -491,6 +504,7 @@ namespace mwb_materials
             {
                 AoCheck.Checked = true;
                 OpenGlNormalCheck.Checked = false;
+                InvertNormalBlueCheck.Checked = false;
                 InvertOpacityCheck.Checked = false;
                 BatchMoveOutputCheck.Checked = true;
                 BatchIncludeFoldersCheck.Checked = false;
@@ -521,6 +535,7 @@ namespace mwb_materials
         {
             AoCheck.CheckedChanged += SaveSettingsOnChange;
             OpenGlNormalCheck.CheckedChanged += SaveSettingsOnChange;
+            InvertNormalBlueCheck.CheckedChanged += SaveSettingsOnChange;
             InvertOpacityCheck.CheckedChanged += SaveSettingsOnChange;
             BatchMoveOutputCheck.CheckedChanged += SaveSettingsOnChange;
             BatchIncludeFoldersCheck.CheckedChanged += SaveSettingsOnChange;
@@ -570,6 +585,7 @@ namespace mwb_materials
             settings.EnvMapsFolder = EnvMapsDestination.Text;
             settings.AoMasks = AoCheck.Checked;
             settings.OpenGlNormal = OpenGlNormalCheck.Checked;
+            settings.InvertNormalBlue = InvertNormalBlueCheck.Checked;
             settings.InvertOpacity = InvertOpacityCheck.Checked;
             settings.AoAlbedoStrength = AoStrengthTrackBar.Value;
             settings.AlphatestReference = AlphatestReferenceTrackBar.Value;
