@@ -4,7 +4,7 @@
 
 ![laugh](https://raw.githubusercontent.com/9lbw/mwb-materials/refs/heads/main/autoconverters.png)
 
-If you need help click ![here](https://github.com/mushroom-guy/mwb-materials/blob/main/help.md).
+If you need help click ![here](https://github.com/9lbw/mwb-materials/blob/main/help.md).
 
 ## Note for me
 
