@@ -26,21 +26,20 @@ namespace mwb_materials
             processInfo.Arguments += "-" + key + " ";
         }
 
-        public static async Task ExportFile(string file, string outputFolder, string format, bool bNoMips, string moveOutputPath)
+        public static async Task ExportFile(string file, string outputFolder, string format, bool bNoMips, string moveOutputPath, Action<string> logFunc = null)
         {
-            TaskCompletionSource<bool> completion = new TaskCompletionSource<bool>();
-
             ProcessStartInfo programInfo = new ProcessStartInfo();
             programInfo.WindowStyle = ProcessWindowStyle.Hidden;
             programInfo.CreateNoWindow = true;
             programInfo.UseShellExecute = false;
             programInfo.RedirectStandardOutput = true;
+            programInfo.RedirectStandardError = true;
             programInfo.FileName = "vtfcmd\\VTFCmd.exe";
 
             programInfo.WorkingDirectory = Path.GetDirectoryName(file);
             programInfo.Arguments = string.Empty;
             AddProcessArgument(programInfo, "file", Path.GetFileName(file));
-            AddProcessArgument(programInfo, "output", Path.GetDirectoryName(outputFolder));
+            AddProcessArgument(programInfo, "output", outputFolder.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
             AddProcessArgument(programInfo, "format", format);
             AddProcessArgument(programInfo, "alphaformat", format);
             
@@ -48,40 +47,88 @@ namespace mwb_materials
             {
                 AddProcessArgument(programInfo, "nomipmaps");
             }
-            else
+
+            logFunc?.Invoke("VTFCmd: " + programInfo.FileName + " " + programInfo.Arguments.Trim());
+
+            string output;
+            string error;
+
+            using (Process runProgram = new Process())
             {
-                AddProcessArgument(programInfo, "mfilter", "GAUSSIAN");
-                AddProcessArgument(programInfo, "msharpen", "SHARPENSOFT");
+                runProgram.StartInfo = programInfo;
+                runProgram.Start();
+
+                Task<string> outputTask = runProgram.StandardOutput.ReadToEndAsync();
+                Task<string> errorTask = runProgram.StandardError.ReadToEndAsync();
+                await Task.Run(() => runProgram.WaitForExit());
+
+                output = await outputTask;
+                error = await errorTask;
             }
 
-            Process runProgram = new Process();
-            runProgram.StartInfo = programInfo;
-            runProgram.EnableRaisingEvents = true;
-            runProgram.Exited += (object sender, EventArgs a) =>
+            LogProcessText(output, logFunc);
+            LogProcessText(error, logFunc);
+
+            string exportedFile = Path.Combine(outputFolder, Path.GetFileNameWithoutExtension(file) + ".vtf");
+
+            if (!File.Exists(exportedFile))
             {
-                File.Delete(file);
+                string message = "VTFCmd did not create " + Path.GetFileName(exportedFile) + ".";
 
-                if (moveOutputPath != string.Empty)
+                if (!string.IsNullOrWhiteSpace(output))
                 {
-                    string fileSrc = outputFolder + Path.GetFileNameWithoutExtension(file) + ".vtf";
-                    string fileDest = moveOutputPath + "\\" + Path.GetFileNameWithoutExtension(file) + ".vtf";
-
-                    Directory.CreateDirectory(moveOutputPath);
-
-                    if (File.Exists(fileDest))
-                    {
-                        File.Delete(fileDest);
-                    }
-
-                    File.Move(fileSrc, fileDest);
+                    message += "\n\nOutput:\n" + output.Trim();
                 }
 
-                completion.TrySetResult(true);
-            };
+                if (!string.IsNullOrWhiteSpace(error))
+                {
+                    message += "\n\nError:\n" + error.Trim();
+                }
 
-            runProgram.Start();
+                throw new InvalidOperationException(message);
+            }
 
-            await completion.Task;
+            File.Delete(file);
+
+            if (moveOutputPath != string.Empty)
+            {
+                string fileDest = Path.Combine(moveOutputPath, Path.GetFileName(exportedFile));
+
+                Directory.CreateDirectory(moveOutputPath);
+
+                if (File.Exists(fileDest))
+                {
+                    File.Delete(fileDest);
+                }
+
+                File.Move(exportedFile, fileDest);
+                logFunc?.Invoke("Moved " + Path.GetFileName(exportedFile) + " -> " + fileDest);
+            }
+            else
+            {
+                logFunc?.Invoke("Wrote " + exportedFile);
+            }
+        }
+
+        private static void LogProcessText(string text, Action<string> logFunc)
+        {
+            if (logFunc == null || string.IsNullOrWhiteSpace(text))
+            {
+                return;
+            }
+
+            using (StringReader reader = new StringReader(text))
+            {
+                string line;
+
+                while ((line = reader.ReadLine()) != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(line))
+                    {
+                        logFunc(line.Trim());
+                    }
+                }
+            }
         }
     }
 }

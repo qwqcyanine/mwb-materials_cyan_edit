@@ -28,6 +28,8 @@
     "$envmap" "${ENVMAPPATH}\${ENVMAP}"
     "$envmaptint" "${ENVMAPTINT}"                 
 
+${DETAILBLOCK}
+
     //remove this if not using MWB
     "Proxies"
     {

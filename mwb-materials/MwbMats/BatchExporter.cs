@@ -24,6 +24,7 @@ namespace mwb_materials.MwbMats
             public bool bAlbedoMipMaps { get; internal set; }
             public bool bNormalMipMaps { get; internal set; }
             public bool bExponentMipMaps { get; internal set; }
+            public Action<string> LogFunc { get; internal set; }
         }
 
         private static async Task GenerateInFolder(string path, BatchProperties props, string startPath, Action<string, List<string>> progressFunc)
@@ -50,7 +51,9 @@ namespace mwb_materials.MwbMats
             {
                 try
                 {
-                    Image.FromFile(file);
+                    using (Image.FromFile(file))
+                    {
+                    }
                 }
                 catch (OutOfMemoryException)
                 {
@@ -67,6 +70,7 @@ namespace mwb_materials.MwbMats
 
             string folderName = Path.GetFileName(path);
             progressFunc(folderName, sanitizedFiles);
+            props.LogFunc?.Invoke("Processing " + folderName + " (" + sanitizedFiles.Count + " source textures)");
 
             MaterialManipulation.SourceTextureSet textures = await MaterialManipulation.GenerateTextures(sanitizedFiles, props.GenerateProps);
 
@@ -78,12 +82,9 @@ namespace mwb_materials.MwbMats
 
             Dictionary<string, object> vmtValues = new Dictionary<string, object>();
 
-            Task albedoTask = Task.CompletedTask;
-            Task exponentTask = Task.CompletedTask;
-            Task normalTask = Task.CompletedTask;
-
             string outputName;
             string movePath = string.Empty;
+            string detailName = string.Empty;
 
             if (props.bMoveOutput && props.VmtRootPath != string.Empty)
             {
@@ -102,7 +103,7 @@ namespace mwb_materials.MwbMats
                 textures.Albedo?.Save(tempPath + outputName + ".png", ImageFormat.Png);
                 vmtValues.Add("ALBEDONAME", outputName);
 
-                albedoTask = VtfCmdInterface.ExportFile(tempPath + outputName + ".png", outputPath, props.AlbedoCompression, !props.bAlbedoMipMaps, movePath);
+                await VtfCmdInterface.ExportFile(tempPath + outputName + ".png", outputPath, props.AlbedoCompression, !props.bAlbedoMipMaps, movePath, props.LogFunc);
             }
 
             if (textures.Exponent != null)
@@ -112,7 +113,7 @@ namespace mwb_materials.MwbMats
                 textures.Exponent.Save(tempPath + outputName + ".png", ImageFormat.Png);
                 vmtValues.Add("EXPONENTNAME", outputName);
 
-                exponentTask = VtfCmdInterface.ExportFile(tempPath + outputName + ".png", outputPath, props.ExponentCompression, !props.bExponentMipMaps, movePath);
+                await VtfCmdInterface.ExportFile(tempPath + outputName + ".png", outputPath, props.ExponentCompression, !props.bExponentMipMaps, movePath, props.LogFunc);
             }
 
             if (textures.Normal != null)
@@ -122,17 +123,27 @@ namespace mwb_materials.MwbMats
                 textures.Normal?.Save(tempPath + outputName + ".png", ImageFormat.Png);
                 vmtValues.Add("NORMALNAME", outputName);
 
-                normalTask = VtfCmdInterface.ExportFile(tempPath + outputName + ".png", outputPath, props.NormalCompression, !props.bNormalMipMaps, movePath);
+                await VtfCmdInterface.ExportFile(tempPath + outputName + ".png", outputPath, props.NormalCompression, !props.bNormalMipMaps, movePath, props.LogFunc);
             }
 
-            await albedoTask; await exponentTask; await normalTask;
+            if (textures.Emissive != null)
+            {
+                outputName = folderName + "_emissive";
+
+                textures.Emissive.Save(tempPath + outputName + ".png", ImageFormat.Png);
+                detailName = outputName;
+
+                await VtfCmdInterface.ExportFile(tempPath + outputName + ".png", outputPath, props.AlbedoCompression, !props.bAlbedoMipMaps, movePath, props.LogFunc);
+            }
 
             Color averageMetallicColor = textures.AverageMetallicColor;
             double averageRoughness = textures.AverageRoughness;
 
             textures.Dispose();
 
-            vmtValues.Add("EXPORTPATH", VmtUtils.GetVMTPath(movePath));
+            string exportPath = VmtUtils.GetVMTPath(movePath);
+            vmtValues.Add("EXPORTPATH", exportPath);
+            vmtValues.Add("DETAILBLOCK", GetDetailBlock(exportPath, detailName));
 
             //envmap
             VmtUtils.EnvMapFile envmapTexture = VmtUtils.GetEnvMapTextureFromRoughness(averageRoughness);
@@ -158,6 +169,21 @@ namespace mwb_materials.MwbMats
         public static async Task StartBatch(string path, BatchProperties props, Action<string, List<string>> folderFunc)
         {
             await GenerateInFolder(path, props, path, folderFunc);
+        }
+
+        private static string GetDetailBlock(string exportPath, string detailName)
+        {
+            if (string.IsNullOrEmpty(detailName))
+            {
+                return string.Empty;
+            }
+
+            string detailPath = string.IsNullOrEmpty(exportPath) ? detailName : exportPath + "\\" + detailName;
+
+            return
+                "    \"$detail\" \"" + detailPath + "\"\r\n" +
+                "    \"$detailscale\" \"1\"\r\n" +
+                "    \"$detailblendmode\" \"5\"";
         }
     }
 }

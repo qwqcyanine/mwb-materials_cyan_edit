@@ -89,6 +89,7 @@
     <Compile Include="MwbMats\MaterialManipulation.cs" />
     <Compile Include="MwbMats\VmtUtils.cs" />
     <Compile Include="Program.cs" />
+    <Compile Include="UiTheme.cs" />
     <Compile Include="MwbMats\VmtGenerator.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="MwbMats\VtfCmdInterface.cs" />

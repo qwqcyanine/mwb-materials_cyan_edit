@@ -16,6 +16,7 @@ namespace mwb_materials
         public BatchProgressForm()
         {
             InitializeComponent();
+            UiTheme.Apply(this);
         }
 
         public void SetFolderName(string folder)

@@ -11,10 +11,13 @@ In that folder you're going to place a few textures:
 - roughness/gloss (**_r**/**_g**)
 - metalness (**_m** or **_alpha**)
 - ambient occlusion (**_o** or **_ao**)
+- emissive/glow (**_e**)
 
 ![help2](https://cdn.discordapp.com/attachments/1137688979743981648/1137690447884603482/image.png)
 
 **Remember to rename the images by adding the texture type at the end of their names (refer to list above).**
+
+Emissive textures should be mostly black, with only the glowing parts colored. Darker colors glow less, and pure black will not glow.
 
 After that, you can press the Open Folders button and select your folder.
 

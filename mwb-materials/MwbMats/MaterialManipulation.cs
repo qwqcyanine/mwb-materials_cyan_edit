@@ -30,6 +30,7 @@ namespace mwb_materials
         private static readonly string MetalnessNomenclature = "_alpha";
         private static readonly string MetalnessAltNomenclature = "_m";
         private static readonly string NormalNomenclature = "_n";
+        private static readonly string EmissiveNomenclature = "_e";
 
         public enum TextureChannel
         {
@@ -50,11 +51,12 @@ namespace mwb_materials
 
         public struct SourceTextureSet : IDisposable
         {
-            public SourceTextureSet(Bitmap albedo, Bitmap exponent, Bitmap normal, Color metallicColor, double averageRoughness)
+            public SourceTextureSet(Bitmap albedo, Bitmap exponent, Bitmap normal, Bitmap emissive, Color metallicColor, double averageRoughness)
             {
                 Albedo = albedo;
                 Exponent = exponent;
                 Normal = normal;
+                Emissive = emissive;
                 AverageMetallicColor = metallicColor;
                 AverageRoughness = averageRoughness;
             }
@@ -62,6 +64,7 @@ namespace mwb_materials
             public Bitmap Albedo { get; }
             public Bitmap Exponent { get; }
             public Bitmap Normal { get; }
+            public Bitmap Emissive { get; }
             public Color AverageMetallicColor { get; }
             public double AverageRoughness { get; }
 
@@ -70,6 +73,7 @@ namespace mwb_materials
                 Albedo?.Dispose();
                 Exponent?.Dispose();
                 Normal?.Dispose();
+                Emissive?.Dispose();
             }
         }
 
@@ -149,17 +153,20 @@ namespace mwb_materials
             }
         }
 
-        private static void ApplyAmbientOcclusion(FastBitmap src, FastBitmap ao)
+        private static void ApplyAmbientOcclusion(FastBitmap src, FastBitmap ao, float strength)
         {
             if (src == null || ao == null)
             {
                 return;
             }
 
+            strength = Math.Min(Math.Max(strength, 0.0f), 1.0f);
+
             for (int cursor = 0; cursor < src.Bytes.Length; cursor += 4)
             {
                 float gsValue = ao.ReadGrayscale(cursor);
                 gsValue /= 255.0f;
+                gsValue = 1.0f.Lerp(gsValue, strength);
 
                 src.Bytes[cursor] = (byte)Math.Min(src.Bytes[cursor] * gsValue, 255.0f);
                 src.Bytes[cursor + 1] = (byte)Math.Min(src.Bytes[cursor + 1] * gsValue, 255.0f);
@@ -181,7 +188,7 @@ namespace mwb_materials
 
             if (ambientOcclusion != null)
             {
-                ApplyAmbientOcclusion(sourceAlbedo, ambientOcclusion);
+                ApplyAmbientOcclusion(sourceAlbedo, ambientOcclusion, props.AoAlbedoStrength);
             }
 
             if (metalness != null)
@@ -293,7 +300,10 @@ namespace mwb_materials
 
         private static FastBitmap LoadImage(string file)
         {
-            return new FastBitmap(new Bitmap(Image.FromFile(file)));
+            using (Image image = Image.FromFile(file))
+            {
+                return new FastBitmap(new Bitmap(image));
+            }
         }
 
         public struct GenerateProperties
@@ -301,6 +311,7 @@ namespace mwb_materials
             public bool bAoMasks { get; internal set; }
             public bool bOpenGlNormal { get; internal set; }
             public int ClampSize { get; internal set; }
+            public float AoAlbedoStrength { get; internal set; }
         }
 
         private static void SetBiggestWidthAndHeight(ref int width, ref int height, FastBitmap bmp)
@@ -408,6 +419,7 @@ namespace mwb_materials
             FastBitmap gloss = null;
             FastBitmap metalness = null;
             FastBitmap normal = null;
+            FastBitmap emissive = null;
 
             int biggestWidth = 0;
             int biggestHeight = 0;
@@ -456,6 +468,13 @@ namespace mwb_materials
                 {
                     normal = LoadImage(file);
                     SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, normal);
+                    continue;
+                }
+
+                if (name.EndsWith(EmissiveNomenclature))
+                {
+                    emissive = LoadImage(file);
+                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, emissive);
                 }
             }
 
@@ -469,8 +488,9 @@ namespace mwb_materials
             ResizeIfSmaller(gloss, biggestWidth, biggestHeight);
             ResizeIfSmaller(metalness, biggestWidth, biggestHeight);
             ResizeIfSmaller(normal, biggestWidth, biggestHeight);
+            ResizeIfSmaller(emissive, biggestWidth, biggestHeight);
 
-            ResizeToClampSize(props.ClampSize, new FastBitmap[] { albedo, ambientOcclusion, roughness, gloss, metalness, normal });
+            ResizeToClampSize(props.ClampSize, new FastBitmap[] { albedo, ambientOcclusion, roughness, gloss, metalness, normal, emissive });
 
             //invert roughness
             Task roughnessTask = Task.Run(() =>
@@ -542,7 +562,7 @@ namespace mwb_materials
             metalness?.StopAndDispose();
             normal?.StopAndDispose();
 
-            return new SourceTextureSet(sourceAlbedo?.Source, sourceExponent?.Source, sourceNormal?.Source, averageMetallicColor, averageRoughness);
+            return new SourceTextureSet(sourceAlbedo?.Source, sourceExponent?.Source, sourceNormal?.Source, emissive?.Source, averageMetallicColor, averageRoughness);
         }
     }
 }
