@@ -316,6 +316,11 @@ namespace mwb_materials
 
         private static FastBitmap LoadImage(string file)
         {
+            if (DdsLoader.IsDds(file))
+            {
+                return new FastBitmap(DdsLoader.Load(file));
+            }
+
             using (Image image = Image.FromFile(file))
             {
                 return new FastBitmap(new Bitmap(image));

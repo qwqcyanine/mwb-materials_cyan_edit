@@ -64,7 +64,7 @@ All of the textures are optional. The tool will work with whatever it finds in t
 
 > Tool won't load my textures. What's going on?
 
-Make sure the textures' file type is natively supported by Windows (png, jpg, etc)
+Make sure the textures' file type is natively supported by Windows (png, jpg, etc) or is a .dds file (DXT1-5 / BC1-3, BC4, BC5, BC7, and uncompressed RGB/RGBA). HDR/float DDS formats (BC6H, R16F, R32F) are not supported.
 
 
 > I don't have a glossiness mask. Can I use roughness?

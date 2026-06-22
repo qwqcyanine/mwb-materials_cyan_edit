@@ -58,6 +58,9 @@
     <Reference Include="Microsoft.WindowsAPICodePack.ShellExtensions, Version=1.1.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>packages\Microsoft.WindowsAPICodePack-Shell.1.1.0.0\lib\Microsoft.WindowsAPICodePack.ShellExtensions.dll</HintPath>
     </Reference>
+    <Reference Include="Pfim">
+      <HintPath>packages\Pfim.0.11.4\lib\netstandard2.0\Pfim.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
@@ -79,6 +82,7 @@
     </Compile>
     <Compile Include="MwbMats\BatchExporter.cs" />
     <Compile Include="MwbMats\ColorExtensions.cs" />
+    <Compile Include="MwbMats\DdsLoader.cs" />
     <Compile Include="MwbMats\FastBitmap.cs" />
     <Compile Include="Form1.cs">
       <SubType>Form</SubType>

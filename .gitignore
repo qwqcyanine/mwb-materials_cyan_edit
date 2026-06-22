@@ -1,4 +1,6 @@
 bin/
 obj/
+packages/
 .vs/
 VTFEdit-Reloaded/
+test-dxt5.dds
