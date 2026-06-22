@@ -21,6 +21,7 @@ namespace mwb_materials
         private TextBox ConsoleTextBox;
         private TrackBar AoStrengthTrackBar;
         private Label AoStrengthValueLabel;
+        private Button RestoreDefaultsButton;
         private bool bLoadingSettings;
 
         private ToolTip ToolTip = new ToolTip()
@@ -64,12 +65,24 @@ namespace mwb_materials
             ResizeTextBox(VmtDestinationPath, 8, 158, 480);
             label2.SetBounds(8, 184, 92, 16);
             ClampComboBox.SetBounds(108, 180, 120, 21);
+            AddRestoreDefaultsButton(settingsGroup);
 
             LayoutVtfControls(vtfsGroup);
             BatchIncludeFoldersCheck.SetBounds(10, 21, 225, 20);
             BatchMoveOutputCheck.SetBounds(10, 45, 225, 20);
             FolderButton.Dock = DockStyle.None;
             FolderButton.SetBounds(252, 28, 236, 42);
+        }
+
+        private void AddRestoreDefaultsButton(GroupBox settingsGroup)
+        {
+            RestoreDefaultsButton = new Button()
+            {
+                Text = "Defaults"
+            };
+            RestoreDefaultsButton.SetBounds(398, 177, 90, 24);
+            RestoreDefaultsButton.Click += RestoreDefaultsButton_Click;
+            settingsGroup.Controls.Add(RestoreDefaultsButton);
         }
 
         private void AddAoStrengthControls(GroupBox settingsGroup)
@@ -409,6 +422,36 @@ namespace mwb_materials
             }
         }
 
+        private void RestoreDefaultSettings()
+        {
+            bLoadingSettings = true;
+
+            try
+            {
+                AoCheck.Checked = true;
+                OpenGlNormalCheck.Checked = false;
+                BatchMoveOutputCheck.Checked = true;
+                BatchIncludeFoldersCheck.Checked = false;
+                AlbedoMipMapsCheck.Checked = true;
+                NormalMipMapsCheck.Checked = false;
+                ExponentMipMapsCheck.Checked = true;
+
+                SetComboBoxValue(AlbedoCompression, VtfCmdInterface.FormatDXT5, VtfCmdInterface.FormatDXT5);
+                SetComboBoxValue(NormalCompression, VtfCmdInterface.FormatRGBA8888, VtfCmdInterface.FormatRGBA8888);
+                SetComboBoxValue(ExponentCompression, VtfCmdInterface.FormatDXT5, VtfCmdInterface.FormatDXT5);
+                SetComboBoxValue(ClampComboBox, "4096", "4096");
+
+                AoStrengthTrackBar.Value = 100;
+                UpdateAoStrengthLabel();
+            }
+            finally
+            {
+                bLoadingSettings = false;
+            }
+
+            SaveSettings();
+        }
+
         private void RegisterSettingsEvents()
         {
             AoCheck.CheckedChanged += SaveSettingsOnChange;
@@ -477,6 +520,11 @@ namespace mwb_materials
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
             SaveSettings();
+        }
+
+        private void RestoreDefaultsButton_Click(object sender, EventArgs e)
+        {
+            RestoreDefaultSettings();
         }
 
         private void Form1_HelpButtonClicked(object sender, EventArgs e)
