@@ -23,6 +23,7 @@ namespace mwb_materials
     {
         private static readonly string AlbedoNomenclature = "_rgb";
         private static readonly string AlbedoAltNomenclature = "_c";
+        private static readonly string AlbedoMetalnessNomenclature = "_rgbm";
         private static readonly string AmbientOcclusionNomenclature = "_o";
         private static readonly string AmbientOcclusionAltNomenclature = "_ao";
         private static readonly string RoughnessNomenclature = "_r";
@@ -36,6 +37,11 @@ namespace mwb_materials
         private static readonly string PackedOrmNomenclature = "_orm";
         private static readonly string PackedRmaNomenclature = "_rma";
         private static readonly string PackedMraoNomenclature = "_mrao";
+        private static readonly string CodNogPackedNgNomenclature = "packed_ng";
+        private static readonly string CodNogPackedNogNomenclature = "packed_nog";
+        private static readonly string CodNogNomenclature = "_nog";
+        private static readonly string CodNogNormalNomenclature = "_n&";
+        private static readonly string CodNogGlossNomenclature = "_g~";
 
         public enum TextureChannel
         {
@@ -390,6 +396,89 @@ namespace mwb_materials
             packed.StopAndDispose();
         }
 
+        private static bool IsCodNogTextureName(string name)
+        {
+            return name.Contains(CodNogPackedNgNomenclature) ||
+                name.Contains(CodNogPackedNogNomenclature) ||
+                name.EndsWith(CodNogNomenclature) ||
+                name.Contains(CodNogNormalNomenclature) ||
+                name.Contains(CodNogGlossNomenclature);
+        }
+
+        private static byte EncodeNormalComponent(float value)
+        {
+            value = (value * 0.5f) + 0.5f;
+            value = Math.Min(Math.Max(value, 0.0f), 1.0f);
+            return (byte)Math.Min((value * 255.0f) + 0.5f, 255.0f);
+        }
+
+        private static FastBitmap CreateCodNogNormal(FastBitmap src)
+        {
+            FastBitmap result = new FastBitmap(new Bitmap(src.Source.Width, src.Source.Height));
+            result.Start(ImageLockMode.ReadWrite);
+
+            for (int cursor = 0; cursor < src.Bytes.Length; cursor += 4)
+            {
+                float normalX = (src.Bytes[cursor + (int)TextureChannel.Green] / 255.0f * 2.0f) - 1.0f;
+                float normalY = (src.Bytes[cursor + (int)TextureChannel.Alpha] / 255.0f * 2.0f) - 1.0f;
+
+                float x = (normalX + normalY) * 0.5f;
+                float y = (normalX - normalY) * 0.5f;
+                float z = 1.0f - Math.Abs(x) - Math.Abs(y);
+                float length = (float)Math.Sqrt((x * x) + (y * y) + (z * z));
+
+                if (length > 0.0f)
+                {
+                    x /= length;
+                    y /= length;
+                    z /= length;
+                }
+
+                result.Bytes[cursor] = EncodeNormalComponent(z);
+                result.Bytes[cursor + 1] = EncodeNormalComponent(y);
+                result.Bytes[cursor + 2] = EncodeNormalComponent(x);
+                result.Bytes[cursor + 3] = 255;
+            }
+
+            result.Stop();
+            return result;
+        }
+
+        private static void SplitCodNogTexture(FastBitmap packed,
+            ref FastBitmap ao, ref FastBitmap gloss, ref FastBitmap normal)
+        {
+            packed.Start(ImageLockMode.ReadOnly);
+
+            gloss = ExtractChannel(packed, TextureChannel.Red);
+            ao = ExtractChannel(packed, TextureChannel.Blue);
+            normal = CreateCodNogNormal(packed);
+
+            packed.StopAndDispose();
+        }
+
+        private static void LoadRgbmTexture(string file, ref FastBitmap albedo, ref FastBitmap metalness)
+        {
+            Bitmap albedoBitmap;
+            Bitmap metalnessBitmap;
+
+            if (DdsLoader.IsPfimSupportedSource(file))
+            {
+                DdsLoader.LoadRgbm(file, out albedoBitmap, out metalnessBitmap);
+            }
+            else
+            {
+                using (Image image = Image.FromFile(file))
+                using (Bitmap source = new Bitmap(image))
+                {
+                    bool sourceHasAlpha = Image.IsAlphaPixelFormat(source.PixelFormat);
+                    DdsLoader.SplitRgbmBitmap(source, sourceHasAlpha, out albedoBitmap, out metalnessBitmap);
+                }
+            }
+
+            albedo = new FastBitmap(albedoBitmap);
+            metalness = new FastBitmap(metalnessBitmap);
+        }
+
         private static void SetBiggestWidthAndHeight(ref int width, ref int height, FastBitmap bmp)
         {
             width = bmp.Source.Width > width ? bmp.Source.Width : width;
@@ -507,6 +596,14 @@ namespace mwb_materials
                 string name = Path.GetFileNameWithoutExtension(file);
                 name = name.ToLower();
 
+                if (IsCodNogTextureName(name))
+                {
+                    FastBitmap packed = LoadImage(file);
+                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, packed);
+                    SplitCodNogTexture(packed, ref ambientOcclusion, ref gloss, ref normal);
+                    continue;
+                }
+
                 if (name.EndsWith(PackedOrmNomenclature) || name.EndsWith(PackedRmaNomenclature) || name.EndsWith(PackedMraoNomenclature))
                 {
                     string packedType = name.EndsWith(PackedOrmNomenclature) ? PackedOrmNomenclature
@@ -517,6 +614,13 @@ namespace mwb_materials
                     SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, packed);
                     SplitPackedTexture(packed, packedType, ref ambientOcclusion, ref roughness, ref metalness);
                     SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, ambientOcclusion);
+                    continue;
+                }
+
+                if (name.EndsWith(AlbedoMetalnessNomenclature))
+                {
+                    LoadRgbmTexture(file, ref albedo, ref metalness);
+                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, albedo);
                     continue;
                 }
 

@@ -6,7 +6,7 @@ Make a folder and name it like you want the vmt to be named:
 
 In that folder you're going to place a few textures:
 
-- albedo (**_rgb** or **_c**)
+- albedo (**_rgb**, **_rgbm**, or **_c**)
 - normal (**_n**)
 - roughness/gloss (**_r**/**_g**)
 - metalness (**_m** or **_alpha**)
@@ -15,6 +15,7 @@ In that folder you're going to place a few textures:
 - alphatest opacity (**_t**)
 - translucent opacity (**_opacity**)
 - packed ORM/RMA/MRAO (**_orm**, **_rma**, **_mrao**)
+- CoD NOG/NG packed normal/gloss/occlusion (**packed_ng**, **packed_nog**, **_nog**, **_n&**, **_g~**)
 
 ![help2](https://cdn.discordapp.com/attachments/1137688979743981648/1137690447884603482/image.png)
 
