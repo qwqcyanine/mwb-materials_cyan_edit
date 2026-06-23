@@ -6,7 +6,7 @@ Make a folder and name it like you want the vmt to be named:
 
 In that folder you're going to place a few textures:
 
-- albedo (**_rgb**, **_rgbm**, or **_c**)
+- albedo (**_rgb**, **_rgbm**, **_s~**, or **_c**)
 - normal (**_n**)
 - roughness/gloss (**_r**/**_g**)
 - metalness (**_m** or **_alpha**)

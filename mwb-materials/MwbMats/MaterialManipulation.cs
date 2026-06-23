@@ -24,6 +24,7 @@ namespace mwb_materials
         private static readonly string AlbedoNomenclature = "_rgb";
         private static readonly string AlbedoAltNomenclature = "_c";
         private static readonly string AlbedoMetalnessNomenclature = "_rgbm";
+        private static readonly string CodAlbedoSpecNomenclature = "_s~";
         private static readonly string AmbientOcclusionNomenclature = "_o";
         private static readonly string AmbientOcclusionAltNomenclature = "_ao";
         private static readonly string RoughnessNomenclature = "_r";
@@ -405,6 +406,12 @@ namespace mwb_materials
                 name.Contains(CodNogGlossNomenclature);
         }
 
+        private static bool IsRgbmTextureName(string name)
+        {
+            return name.EndsWith(AlbedoMetalnessNomenclature) ||
+                name.Contains(CodAlbedoSpecNomenclature);
+        }
+
         private static byte EncodeNormalComponent(float value)
         {
             value = (value * 0.5f) + 0.5f;
@@ -617,7 +624,7 @@ namespace mwb_materials
                     continue;
                 }
 
-                if (name.EndsWith(AlbedoMetalnessNomenclature))
+                if (IsRgbmTextureName(name))
                 {
                     LoadRgbmTexture(file, ref albedo, ref metalness);
                     SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, albedo);
