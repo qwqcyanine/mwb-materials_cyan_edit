@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -129,48 +130,44 @@ namespace mwb_materials.MwbMats
             {
                 outputName = folderName + "_rgb";
 
-                string albedoPng = Path.Combine(tempPath, outputName + ".png");
+                string albedoPath = SaveTempTexture(textures.Albedo, tempPath, outputName);
 
-                textures.Albedo?.Save(albedoPng, ImageFormat.Png);
                 vmtValues.Add("ALBEDONAME", outputName);
 
-                await VtfCmdInterface.ExportFile(albedoPng, outputPath, effectiveAlbedoCompression, !props.bAlbedoMipMaps, movePath, props.LogFunc);
+                await ExportTempTexture(albedoPath, textures.Albedo, tempPath, outputName, outputPath, effectiveAlbedoCompression, !props.bAlbedoMipMaps, movePath, props.LogFunc);
             }
 
             if (textures.Exponent != null)
             {
                 outputName = folderName + "_e";
 
-                string exponentPng = Path.Combine(tempPath, outputName + ".png");
+                string exponentPath = SaveTempTexture(textures.Exponent, tempPath, outputName);
 
-                textures.Exponent.Save(exponentPng, ImageFormat.Png);
                 vmtValues.Add("EXPONENTNAME", outputName);
 
-                await VtfCmdInterface.ExportFile(exponentPng, outputPath, props.ExponentCompression, !props.bExponentMipMaps, movePath, props.LogFunc);
+                await ExportTempTexture(exponentPath, textures.Exponent, tempPath, outputName, outputPath, props.ExponentCompression, !props.bExponentMipMaps, movePath, props.LogFunc);
             }
 
             if (textures.Normal != null)
             {
                 outputName = folderName + "_n";
 
-                string normalPng = Path.Combine(tempPath, outputName + ".png");
+                string normalPath = SaveTempTexture(textures.Normal, tempPath, outputName);
 
-                textures.Normal?.Save(normalPng, ImageFormat.Png);
                 vmtValues.Add("NORMALNAME", outputName);
 
-                await VtfCmdInterface.ExportFile(normalPng, outputPath, props.NormalCompression, !props.bNormalMipMaps, movePath, props.LogFunc);
+                await ExportTempTexture(normalPath, textures.Normal, tempPath, outputName, outputPath, props.NormalCompression, !props.bNormalMipMaps, movePath, props.LogFunc);
             }
 
             if (textures.Emissive != null)
             {
                 outputName = folderName + "_emissive";
 
-                string emissivePng = Path.Combine(tempPath, outputName + ".png");
+                string emissivePath = SaveTempTexture(textures.Emissive, tempPath, outputName);
 
-                textures.Emissive.Save(emissivePng, ImageFormat.Png);
                 detailName = outputName;
 
-                await VtfCmdInterface.ExportFile(emissivePng, outputPath, props.AlbedoCompression, !props.bAlbedoMipMaps, movePath, props.LogFunc);
+                await ExportTempTexture(emissivePath, textures.Emissive, tempPath, outputName, outputPath, props.AlbedoCompression, !props.bAlbedoMipMaps, movePath, props.LogFunc);
             }
 
             Color averageMetallicColor = textures.AverageMetallicColor;
@@ -255,6 +252,72 @@ namespace mwb_materials.MwbMats
             }
 
             return "    \"$translucent\" \"1\"";
+        }
+
+        private static string SaveTempTexture(Bitmap bitmap, string tempPath, string outputName)
+        {
+            string tgaPath = Path.Combine(tempPath, outputName + ".tga");
+            SaveTga(bitmap, tgaPath);
+            return tgaPath;
+        }
+
+        private static async Task ExportTempTexture(string filePath, Bitmap bitmap, string tempPath, string outputName, string outputPath, string compression, bool noMips, string movePath, Action<string> logFunc)
+        {
+            try
+            {
+                await VtfCmdInterface.ExportFile(filePath, outputPath, compression, noMips, movePath, logFunc);
+            }
+            catch
+            {
+                string pngPath = Path.Combine(tempPath, outputName + ".png");
+
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                }
+
+                bitmap.Save(pngPath, ImageFormat.Png);
+                logFunc?.Invoke("TGA export failed; retrying " + outputName + " as PNG.");
+                await VtfCmdInterface.ExportFile(pngPath, outputPath, compression, noMips, movePath, logFunc);
+            }
+        }
+
+        private static void SaveTga(Bitmap bitmap, string path)
+        {
+            Rectangle rect = new Rectangle(0, 0, bitmap.Width, bitmap.Height);
+            BitmapData data = bitmap.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+
+            try
+            {
+                byte[] pixels = new byte[Math.Abs(data.Stride) * data.Height];
+                Marshal.Copy(data.Scan0, pixels, 0, pixels.Length);
+
+                using (FileStream stream = File.Create(path))
+                using (BinaryWriter writer = new BinaryWriter(stream))
+                {
+                    writer.Write(new byte[]
+                    {
+                        0, 0, 2,
+                        0, 0, 0, 0, 0,
+                        0, 0, 0, 0,
+                        (byte)(bitmap.Width & 0xFF), (byte)((bitmap.Width >> 8) & 0xFF),
+                        (byte)(bitmap.Height & 0xFF), (byte)((bitmap.Height >> 8) & 0xFF),
+                        32, 0x28
+                    });
+
+                    int stride = Math.Abs(data.Stride);
+
+                    for (int y = 0; y < bitmap.Height; y++)
+                    {
+                        int row = data.Stride > 0 ? y * stride : (bitmap.Height - 1 - y) * stride;
+                        writer.Write(pixels, row, bitmap.Width * 4);
+                    }
+                }
+            }
+            finally
+            {
+                bitmap.UnlockBits(data);
+            }
         }
 
         private static string CombineWithRelativeFolder(string rootPath, string startPath, string currentPath)
