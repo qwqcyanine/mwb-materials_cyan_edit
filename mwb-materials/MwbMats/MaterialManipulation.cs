@@ -33,6 +33,9 @@ namespace mwb_materials
         private static readonly string EmissiveNomenclature = "_e";
         private static readonly string AlphatestNomenclature = "_t";
         private static readonly string TranslucentNomenclature = "_opacity";
+        private static readonly string PackedOrmNomenclature = "_orm";
+        private static readonly string PackedRmaNomenclature = "_rma";
+        private static readonly string PackedMraoNomenclature = "_mrao";
 
         public enum TextureChannel
         {
@@ -316,7 +319,7 @@ namespace mwb_materials
 
         private static FastBitmap LoadImage(string file)
         {
-            if (DdsLoader.IsDds(file))
+            if (DdsLoader.IsPfimSupportedSource(file))
             {
                 return new FastBitmap(DdsLoader.Load(file));
             }
@@ -335,6 +338,56 @@ namespace mwb_materials
             public bool bInvertOpacity { get; internal set; }
             public int ClampSize { get; internal set; }
             public float AoAlbedoStrength { get; internal set; }
+        }
+
+        private static FastBitmap ExtractChannel(FastBitmap src, TextureChannel channel)
+        {
+            if (src == null)
+            {
+                return null;
+            }
+
+            FastBitmap result = new FastBitmap(new Bitmap(src.Source.Width, src.Source.Height));
+            result.Start(ImageLockMode.ReadWrite);
+
+            for (int cursor = 0; cursor < src.Bytes.Length; cursor += 4)
+            {
+                byte value = src.Bytes[cursor + (int)channel];
+                result.Bytes[cursor] = value;
+                result.Bytes[cursor + 1] = value;
+                result.Bytes[cursor + 2] = value;
+                result.Bytes[cursor + 3] = 255;
+            }
+
+            result.Stop();
+            return result;
+        }
+
+        private static void SplitPackedTexture(FastBitmap packed, string nomenclature,
+            ref FastBitmap ao, ref FastBitmap roughness, ref FastBitmap metalness)
+        {
+            packed.Start(ImageLockMode.ReadOnly);
+
+            if (nomenclature == PackedOrmNomenclature)
+            {
+                ao = ExtractChannel(packed, TextureChannel.Red);
+                roughness = ExtractChannel(packed, TextureChannel.Green);
+                metalness = ExtractChannel(packed, TextureChannel.Blue);
+            }
+            else if (nomenclature == PackedRmaNomenclature)
+            {
+                roughness = ExtractChannel(packed, TextureChannel.Red);
+                metalness = ExtractChannel(packed, TextureChannel.Green);
+                ao = ExtractChannel(packed, TextureChannel.Blue);
+            }
+            else if (nomenclature == PackedMraoNomenclature)
+            {
+                metalness = ExtractChannel(packed, TextureChannel.Red);
+                roughness = ExtractChannel(packed, TextureChannel.Green);
+                ao = ExtractChannel(packed, TextureChannel.Blue);
+            }
+
+            packed.StopAndDispose();
         }
 
         private static void SetBiggestWidthAndHeight(ref int width, ref int height, FastBitmap bmp)
@@ -453,6 +506,19 @@ namespace mwb_materials
             {
                 string name = Path.GetFileNameWithoutExtension(file);
                 name = name.ToLower();
+
+                if (name.EndsWith(PackedOrmNomenclature) || name.EndsWith(PackedRmaNomenclature) || name.EndsWith(PackedMraoNomenclature))
+                {
+                    string packedType = name.EndsWith(PackedOrmNomenclature) ? PackedOrmNomenclature
+                        : name.EndsWith(PackedRmaNomenclature) ? PackedRmaNomenclature
+                        : PackedMraoNomenclature;
+
+                    FastBitmap packed = LoadImage(file);
+                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, packed);
+                    SplitPackedTexture(packed, packedType, ref ambientOcclusion, ref roughness, ref metalness);
+                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, ambientOcclusion);
+                    continue;
+                }
 
                 if (name.EndsWith(AlbedoNomenclature) || name.EndsWith(AlbedoAltNomenclature))
                 {

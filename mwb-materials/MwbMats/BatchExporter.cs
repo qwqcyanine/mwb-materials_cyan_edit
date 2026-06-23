@@ -53,7 +53,7 @@ namespace mwb_materials.MwbMats
 
             foreach (string file in files)
             {
-                if (DdsLoader.IsDds(file))
+                if (DdsLoader.IsPfimSupportedSource(file))
                 {
                     sanitizedFiles.Add(file);
                     continue;

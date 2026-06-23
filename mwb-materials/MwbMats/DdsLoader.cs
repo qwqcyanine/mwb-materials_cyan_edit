@@ -38,7 +38,7 @@ namespace mwb_materials.MwbMats
                         break;
                     default:
                         throw new NotSupportedException(
-                            "Unsupported DDS pixel format " + image.Format + " in " + Path.GetFileName(path) +
+                            "Unsupported source texture pixel format " + image.Format + " in " + Path.GetFileName(path) +
                             ". HDR/float formats (BC6H, R16F, R32F) and Rgba16 are not supported for material source textures.");
                 }
 
@@ -91,6 +91,16 @@ namespace mwb_materials.MwbMats
         public static bool IsDds(string path)
         {
             return Path.GetExtension(path).Equals(".dds", StringComparison.OrdinalIgnoreCase);
+        }
+
+        public static bool IsTga(string path)
+        {
+            return Path.GetExtension(path).Equals(".tga", StringComparison.OrdinalIgnoreCase);
+        }
+
+        public static bool IsPfimSupportedSource(string path)
+        {
+            return IsDds(path) || IsTga(path);
         }
     }
 }
