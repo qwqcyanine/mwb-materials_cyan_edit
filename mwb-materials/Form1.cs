@@ -25,6 +25,8 @@ namespace mwb_materials
         private Label AlphatestReferenceValueLabel;
         private CheckBox InvertOpacityCheck;
         private CheckBox InvertNormalBlueCheck;
+        private CheckBox KeepIntermediatesCheck;
+        private CheckBox UseModelMaterialNamesCheck;
         private ContextMenuStrip TitleBarMenu;
         private bool bLoadingSettings;
 
@@ -50,7 +52,7 @@ namespace mwb_materials
         private void ModernizeLayout()
         {
             AutoSize = false;
-            ClientSize = new Size(520, 650);
+            ClientSize = new Size(520, 715);
             Padding = new Padding(12);
 
             GroupBox settingsGroup = GetGroupBox("Settings");
@@ -59,7 +61,7 @@ namespace mwb_materials
 
             LayoutGroup(settingsGroup, 12, 12, 496, 234);
             LayoutGroup(vtfsGroup, 12, 256, 496, 130);
-            LayoutGroup(batchGroup, 12, 398, 496, 86);
+            LayoutGroup(batchGroup, 12, 398, 496, 134);
 
             AoCheck.SetBounds(8, 19, 220, 20);
             OpenGlNormalCheck.SetBounds(8, 43, 240, 20);
@@ -94,8 +96,24 @@ namespace mwb_materials
             LayoutVtfControls(vtfsGroup);
             BatchIncludeFoldersCheck.SetBounds(10, 21, 225, 20);
             BatchMoveOutputCheck.SetBounds(10, 45, 225, 20);
+            KeepIntermediatesCheck = new CheckBox()
+            {
+                AutoSize = false,
+                ForeColor = System.Drawing.SystemColors.ActiveCaptionText,
+                Text = "Keep temp files"
+            };
+            KeepIntermediatesCheck.SetBounds(10, 69, 225, 20);
+            batchGroup.Controls.Add(KeepIntermediatesCheck);
+            UseModelMaterialNamesCheck = new CheckBox()
+            {
+                AutoSize = false,
+                ForeColor = System.Drawing.SystemColors.ActiveCaptionText,
+                Text = "Use model material names"
+            };
+            UseModelMaterialNamesCheck.SetBounds(10, 93, 225, 20);
+            batchGroup.Controls.Add(UseModelMaterialNamesCheck);
             FolderButton.Dock = DockStyle.None;
-            FolderButton.SetBounds(252, 28, 236, 42);
+            FolderButton.SetBounds(252, 40, 236, 42);
         }
 
         private void AddTitleBarMenu()
@@ -251,7 +269,7 @@ namespace mwb_materials
                 Text = "Console",
                 Padding = new Padding(8)
             };
-            consoleGroup.SetBounds(12, 466, 496, 142);
+            consoleGroup.SetBounds(12, 544, 496, 142);
 
             ConsoleTextBox = new TextBox()
             {
@@ -339,8 +357,10 @@ namespace mwb_materials
                         bOpenGlNormal = OpenGlNormalCheck.Checked,
                         bInvertNormalBlue = InvertNormalBlueCheck.Checked,
                         bInvertOpacity = InvertOpacityCheck.Checked,
+                        bKeepIntermediates = KeepIntermediatesCheck.Checked,
                         ClampSize = int.Parse(ClampComboBox.Text),
-                        AoAlbedoStrength = AoStrengthTrackBar.Value / 100.0f
+                        AoAlbedoStrength = AoStrengthTrackBar.Value / 100.0f,
+                        LogFunc = AppendConsoleLine
                     };
 
                     BatchExporter.BatchProperties bProps = new BatchExporter.BatchProperties()
@@ -355,6 +375,8 @@ namespace mwb_materials
                         bAlbedoMipMaps = AlbedoMipMapsCheck.Checked,
                         bNormalMipMaps = NormalMipMapsCheck.Checked,
                         bExponentMipMaps = ExponentMipMapsCheck.Checked,
+                        bKeepIntermediates = KeepIntermediatesCheck.Checked,
+                        bUseModelMaterialNames = UseModelMaterialNamesCheck.Checked,
                         AlphatestReference = AlphatestReferenceTrackBar.Value / 100.0f,
                         GenerateProps = props,
                         LogFunc = AppendConsoleLine
@@ -455,6 +477,8 @@ namespace mwb_materials
             ToolTip.SetToolTip(AlphatestReferenceTrackBar, "$alphatestreference (threshold for $alphatest)");
             ToolTip.SetToolTip(InvertOpacityCheck, "Invert the opacity mask (black becomes opaque, white becomes transparent)");
             ToolTip.SetToolTip(InvertNormalBlueCheck, "Invert the blue channel of the normal map");
+            ToolTip.SetToolTip(KeepIntermediatesCheck, "Save pre-VTFCmd temp files and extracted channel textures in temp_debug");
+            ToolTip.SetToolTip(UseModelMaterialNamesCheck, "Use SMD material names and glTF/GLB texture bindings when available");
         }
 
         private void LoadSettings()
@@ -469,6 +493,8 @@ namespace mwb_materials
                 OpenGlNormalCheck.Checked = settings.OpenGlNormal;
                 InvertNormalBlueCheck.Checked = settings.InvertNormalBlue;
                 InvertOpacityCheck.Checked = settings.InvertOpacity;
+                KeepIntermediatesCheck.Checked = settings.KeepIntermediates;
+                UseModelMaterialNamesCheck.Checked = settings.UseModelMaterialNames;
                 BatchMoveOutputCheck.Checked = settings.BatchMoveOutput;
                 BatchIncludeFoldersCheck.Checked = settings.BatchIncludeFolders;
                 AlbedoMipMapsCheck.Checked = settings.AlbedoMipMaps;
@@ -506,6 +532,8 @@ namespace mwb_materials
                 OpenGlNormalCheck.Checked = false;
                 InvertNormalBlueCheck.Checked = false;
                 InvertOpacityCheck.Checked = false;
+                KeepIntermediatesCheck.Checked = false;
+                UseModelMaterialNamesCheck.Checked = false;
                 BatchMoveOutputCheck.Checked = true;
                 BatchIncludeFoldersCheck.Checked = false;
                 AlbedoMipMapsCheck.Checked = true;
@@ -537,6 +565,8 @@ namespace mwb_materials
             OpenGlNormalCheck.CheckedChanged += SaveSettingsOnChange;
             InvertNormalBlueCheck.CheckedChanged += SaveSettingsOnChange;
             InvertOpacityCheck.CheckedChanged += SaveSettingsOnChange;
+            KeepIntermediatesCheck.CheckedChanged += SaveSettingsOnChange;
+            UseModelMaterialNamesCheck.CheckedChanged += SaveSettingsOnChange;
             BatchMoveOutputCheck.CheckedChanged += SaveSettingsOnChange;
             BatchIncludeFoldersCheck.CheckedChanged += SaveSettingsOnChange;
             AlbedoMipMapsCheck.CheckedChanged += SaveSettingsOnChange;
@@ -587,6 +617,8 @@ namespace mwb_materials
             settings.OpenGlNormal = OpenGlNormalCheck.Checked;
             settings.InvertNormalBlue = InvertNormalBlueCheck.Checked;
             settings.InvertOpacity = InvertOpacityCheck.Checked;
+            settings.KeepIntermediates = KeepIntermediatesCheck.Checked;
+            settings.UseModelMaterialNames = UseModelMaterialNamesCheck.Checked;
             settings.AoAlbedoStrength = AoStrengthTrackBar.Value;
             settings.AlphatestReference = AlphatestReferenceTrackBar.Value;
             settings.ClampSize = ClampComboBox.Text;

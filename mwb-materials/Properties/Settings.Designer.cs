@@ -157,6 +157,30 @@ namespace mwb_materials.Properties {
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool KeepIntermediates {
+            get {
+                return ((bool)(this["KeepIntermediates"]));
+            }
+            set {
+                this["KeepIntermediates"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool UseModelMaterialNames {
+            get {
+                return ((bool)(this["UseModelMaterialNames"]));
+            }
+            set {
+                this["UseModelMaterialNames"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("DXT5")]
         public string AlbedoCompression {
             get {

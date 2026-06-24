@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -70,7 +71,7 @@ namespace mwb_materials
 
         public struct SourceTextureSet : IDisposable
         {
-            public SourceTextureSet(Bitmap albedo, Bitmap exponent, Bitmap normal, Bitmap emissive, Color metallicColor, double averageRoughness, OpacityMode opacityMode)
+            public SourceTextureSet(Bitmap albedo, Bitmap exponent, Bitmap normal, Bitmap emissive, Color metallicColor, double averageRoughness, OpacityMode opacityMode, IntermediateTextureSet intermediates)
             {
                 Albedo = albedo;
                 Exponent = exponent;
@@ -79,6 +80,7 @@ namespace mwb_materials
                 AverageMetallicColor = metallicColor;
                 AverageRoughness = averageRoughness;
                 OpacityMode = opacityMode;
+                Intermediates = intermediates;
             }
 
             public Bitmap Albedo { get; }
@@ -88,6 +90,7 @@ namespace mwb_materials
             public Color AverageMetallicColor { get; }
             public double AverageRoughness { get; }
             public OpacityMode OpacityMode { get; }
+            public IntermediateTextureSet Intermediates { get; }
 
             public void Dispose()
             {
@@ -95,6 +98,28 @@ namespace mwb_materials
                 Exponent?.Dispose();
                 Normal?.Dispose();
                 Emissive?.Dispose();
+                Intermediates?.Dispose();
+            }
+        }
+
+        public sealed class IntermediateTextureSet : IDisposable
+        {
+            public IntermediateTextureSet(Bitmap ambientOcclusion, Bitmap gloss, Bitmap metalness)
+            {
+                AmbientOcclusion = ambientOcclusion;
+                Gloss = gloss;
+                Metalness = metalness;
+            }
+
+            public Bitmap AmbientOcclusion { get; }
+            public Bitmap Gloss { get; }
+            public Bitmap Metalness { get; }
+
+            public void Dispose()
+            {
+                AmbientOcclusion?.Dispose();
+                Gloss?.Dispose();
+                Metalness?.Dispose();
             }
         }
 
@@ -343,8 +368,176 @@ namespace mwb_materials
             public bool bOpenGlNormal { get; internal set; }
             public bool bInvertNormalBlue { get; internal set; }
             public bool bInvertOpacity { get; internal set; }
+            public bool bKeepIntermediates { get; internal set; }
             public int ClampSize { get; internal set; }
             public float AoAlbedoStrength { get; internal set; }
+            public Action<string> LogFunc { get; internal set; }
+        }
+
+        private struct TextureStats
+        {
+            public int Min;
+            public int Max;
+            public double Average;
+
+            public override string ToString()
+            {
+                return Min.ToString(CultureInfo.InvariantCulture) + "/" +
+                    Average.ToString("0.0", CultureInfo.InvariantCulture) + "/" +
+                    Max.ToString(CultureInfo.InvariantCulture);
+            }
+        }
+
+        private static TextureStats GetChannelStats(FastBitmap bmp, TextureChannel channel)
+        {
+            TextureStats stats = new TextureStats()
+            {
+                Min = 255,
+                Max = 0,
+                Average = 0.0
+            };
+
+            int count = 0;
+
+            for (int cursor = 0; cursor < bmp.Bytes.Length; cursor += 4)
+            {
+                int value = bmp.Bytes[cursor + (int)channel];
+                stats.Min = Math.Min(stats.Min, value);
+                stats.Max = Math.Max(stats.Max, value);
+                stats.Average += value;
+                count++;
+            }
+
+            if (count > 0)
+            {
+                stats.Average /= count;
+            }
+
+            return stats;
+        }
+
+        private static TextureStats GetGrayscaleStats(FastBitmap bmp)
+        {
+            TextureStats stats = new TextureStats()
+            {
+                Min = 255,
+                Max = 0,
+                Average = 0.0
+            };
+
+            int count = 0;
+
+            for (int cursor = 0; cursor < bmp.Bytes.Length; cursor += 4)
+            {
+                int value = bmp.ReadGrayscale(cursor);
+                stats.Min = Math.Min(stats.Min, value);
+                stats.Max = Math.Max(stats.Max, value);
+                stats.Average += value;
+                count++;
+            }
+
+            if (count > 0)
+            {
+                stats.Average /= count;
+            }
+
+            return stats;
+        }
+
+        private static void LogSourceReport(string file, string role, string channelsUsed, FastBitmap bmp, Action<string> logFunc)
+        {
+            if (logFunc == null || bmp == null)
+            {
+                return;
+            }
+
+            bmp.Start(ImageLockMode.ReadOnly);
+
+            try
+            {
+                TextureStats grayscale = GetGrayscaleStats(bmp);
+                TextureStats alpha = GetChannelStats(bmp, TextureChannel.Alpha);
+
+                logFunc("Source " + Path.GetFileName(file) +
+                    ": role=" + role +
+                    ", size=" + bmp.Source.Width + "x" + bmp.Source.Height +
+                    ", channels=" + channelsUsed +
+                    ", gray min/avg/max=" + grayscale +
+                    ", alpha min/avg/max=" + alpha);
+            }
+            finally
+            {
+                bmp.Stop();
+            }
+        }
+
+        private static void LogSourceReportFromFile(string file, string role, string channelsUsed, Action<string> logFunc)
+        {
+            if (logFunc == null)
+            {
+                return;
+            }
+
+            FastBitmap bmp = LoadImage(file);
+
+            try
+            {
+                LogSourceReport(file, role, channelsUsed, bmp, logFunc);
+            }
+            finally
+            {
+                bmp.Dispose();
+            }
+        }
+
+        private static bool TryAssignTexture(ref FastBitmap current, ref string currentSource, ref int currentPriority,
+            FastBitmap candidate, string role, string candidateSource, int candidatePriority, Action<string> logFunc)
+        {
+            if (candidate == null)
+            {
+                return false;
+            }
+
+            if (current == null)
+            {
+                current = candidate;
+                currentSource = candidateSource;
+                currentPriority = candidatePriority;
+                return true;
+            }
+
+            if (candidatePriority > currentPriority)
+            {
+                logFunc?.Invoke("Precedence: " + role + " using " + candidateSource + " over " + currentSource + ".");
+                current.Dispose();
+                current = candidate;
+                currentSource = candidateSource;
+                currentPriority = candidatePriority;
+                return true;
+            }
+
+            logFunc?.Invoke("Precedence: " + role + " keeping " + currentSource + "; ignoring " + candidateSource + ".");
+            candidate.Dispose();
+            return false;
+        }
+
+        private static string DescribeTextureSource(string source)
+        {
+            return string.IsNullOrEmpty(source) ? "none" : source;
+        }
+
+        private static Bitmap CloneFastBitmap(FastBitmap src)
+        {
+            if (src == null)
+            {
+                return null;
+            }
+
+            FastBitmap clone = new FastBitmap(new Bitmap(src.Source.Width, src.Source.Height));
+            clone.Start(ImageLockMode.ReadWrite);
+            src.DumpInto(clone);
+            clone.Stop();
+            return clone.Source;
         }
 
         private static FastBitmap ExtractChannel(FastBitmap src, TextureChannel channel)
@@ -406,6 +599,31 @@ namespace mwb_materials
                 name.Contains(CodNogGlossNomenclature);
         }
 
+        private static string GetCodNogRole(string name)
+        {
+            if (name.Contains(CodNogPackedNgNomenclature))
+            {
+                return CodNogPackedNgNomenclature;
+            }
+
+            if (name.Contains(CodNogPackedNogNomenclature))
+            {
+                return CodNogPackedNogNomenclature;
+            }
+
+            if (name.EndsWith(CodNogNomenclature))
+            {
+                return CodNogNomenclature;
+            }
+
+            if (name.Contains(CodNogNormalNomenclature))
+            {
+                return CodNogNormalNomenclature;
+            }
+
+            return CodNogGlossNomenclature;
+        }
+
         private static bool IsRgbmTextureName(string name)
         {
             return name.EndsWith(AlbedoMetalnessNomenclature) ||
@@ -461,6 +679,66 @@ namespace mwb_materials
             normal = CreateCodNogNormal(packed);
 
             packed.StopAndDispose();
+        }
+
+        private static string GetPackedChannelDescription(string nomenclature)
+        {
+            if (nomenclature == PackedOrmNomenclature)
+            {
+                return "R=AO, G=roughness, B=metalness";
+            }
+
+            if (nomenclature == PackedRmaNomenclature)
+            {
+                return "R=roughness, G=metalness, B=AO";
+            }
+
+            return "R=metalness, G=roughness, B=AO";
+        }
+
+        private static string GetPackedSourceDescription(string nomenclature, string role, string fileName)
+        {
+            if (nomenclature == PackedOrmNomenclature)
+            {
+                if (role == "ao")
+                {
+                    return "red(" + fileName + ")";
+                }
+
+                if (role == "roughness")
+                {
+                    return "green(" + fileName + ")";
+                }
+
+                return "blue(" + fileName + ")";
+            }
+
+            if (nomenclature == PackedRmaNomenclature)
+            {
+                if (role == "roughness")
+                {
+                    return "red(" + fileName + ")";
+                }
+
+                if (role == "metalness")
+                {
+                    return "green(" + fileName + ")";
+                }
+
+                return "blue(" + fileName + ")";
+            }
+
+            if (role == "metalness")
+            {
+                return "red(" + fileName + ")";
+            }
+
+            if (role == "roughness")
+            {
+                return "green(" + fileName + ")";
+            }
+
+            return "blue(" + fileName + ")";
         }
 
         private static void LoadRgbmTexture(string file, ref FastBitmap albedo, ref FastBitmap metalness)
@@ -585,6 +863,10 @@ namespace mwb_materials
 
         public static async Task<SourceTextureSet> GenerateTextures(List<string> files, GenerateProperties props)
         {
+            const int PackedPriority = 10;
+            const int DerivedPriority = 20;
+            const int ExplicitPriority = 30;
+
             FastBitmap albedo = null;
             FastBitmap ambientOcclusion = null;
             FastBitmap roughness = null;
@@ -595,19 +877,47 @@ namespace mwb_materials
             FastBitmap alphatestOpacity = null;
             FastBitmap translucentOpacity = null;
 
+            string albedoSource = null;
+            string ambientOcclusionSource = null;
+            string roughnessSource = null;
+            string glossSource = null;
+            string metalnessSource = null;
+            string normalSource = null;
+            string emissiveSource = null;
+            string alphatestOpacitySource = null;
+            string translucentOpacitySource = null;
+
+            int albedoPriority = 0;
+            int ambientOcclusionPriority = 0;
+            int roughnessPriority = 0;
+            int glossPriority = 0;
+            int metalnessPriority = 0;
+            int normalPriority = 0;
+            int emissivePriority = 0;
+            int alphatestOpacityPriority = 0;
+            int translucentOpacityPriority = 0;
+
             int biggestWidth = 0;
             int biggestHeight = 0;
 
-            foreach (string file in files)
+            foreach (string file in files.OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase))
             {
                 string name = Path.GetFileNameWithoutExtension(file);
                 name = name.ToLower();
+                string fileName = Path.GetFileName(file);
 
                 if (IsCodNogTextureName(name))
                 {
                     FastBitmap packed = LoadImage(file);
+                    LogSourceReport(file, GetCodNogRole(name), "R=gloss, B=AO, G/A=normal", packed, props.LogFunc);
                     SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, packed);
-                    SplitCodNogTexture(packed, ref ambientOcclusion, ref gloss, ref normal);
+                    FastBitmap packedAo = null;
+                    FastBitmap packedGloss = null;
+                    FastBitmap packedNormal = null;
+                    SplitCodNogTexture(packed, ref packedAo, ref packedGloss, ref packedNormal);
+                    TryAssignTexture(ref ambientOcclusion, ref ambientOcclusionSource, ref ambientOcclusionPriority, packedAo, "AO", "blue(" + fileName + ")", PackedPriority, props.LogFunc);
+                    TryAssignTexture(ref gloss, ref glossSource, ref glossPriority, packedGloss, "gloss", "red(" + fileName + ")", PackedPriority, props.LogFunc);
+                    TryAssignTexture(ref normal, ref normalSource, ref normalPriority, packedNormal, "normal", fileName + " (decoded NOG)", PackedPriority, props.LogFunc);
                     continue;
                 }
 
@@ -618,78 +928,114 @@ namespace mwb_materials
                         : PackedMraoNomenclature;
 
                     FastBitmap packed = LoadImage(file);
+                    LogSourceReport(file, packedType + " packed", GetPackedChannelDescription(packedType), packed, props.LogFunc);
                     SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, packed);
-                    SplitPackedTexture(packed, packedType, ref ambientOcclusion, ref roughness, ref metalness);
+                    FastBitmap packedAo = null;
+                    FastBitmap packedRoughness = null;
+                    FastBitmap packedMetalness = null;
+                    SplitPackedTexture(packed, packedType, ref packedAo, ref packedRoughness, ref packedMetalness);
+                    TryAssignTexture(ref ambientOcclusion, ref ambientOcclusionSource, ref ambientOcclusionPriority, packedAo, "AO", GetPackedSourceDescription(packedType, "ao", fileName), PackedPriority, props.LogFunc);
+                    TryAssignTexture(ref roughness, ref roughnessSource, ref roughnessPriority, packedRoughness, "roughness", GetPackedSourceDescription(packedType, "roughness", fileName), PackedPriority, props.LogFunc);
+                    TryAssignTexture(ref metalness, ref metalnessSource, ref metalnessPriority, packedMetalness, "metalness", GetPackedSourceDescription(packedType, "metalness", fileName), PackedPriority, props.LogFunc);
                     SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, ambientOcclusion);
                     continue;
                 }
 
                 if (IsRgbmTextureName(name))
                 {
-                    LoadRgbmTexture(file, ref albedo, ref metalness);
-                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, albedo);
+                    string rgbmRole = name.EndsWith(AlbedoMetalnessNomenclature) ? AlbedoMetalnessNomenclature : CodAlbedoSpecNomenclature;
+                    LogSourceReportFromFile(file, rgbmRole, "RGB=albedo, A=metalness", props.LogFunc);
+                    FastBitmap rgbmAlbedo = null;
+                    FastBitmap rgbmMetalness = null;
+                    LoadRgbmTexture(file, ref rgbmAlbedo, ref rgbmMetalness);
+                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, rgbmAlbedo);
+                    TryAssignTexture(ref albedo, ref albedoSource, ref albedoPriority, rgbmAlbedo, "albedo", "rgb(" + fileName + ")", DerivedPriority, props.LogFunc);
+                    TryAssignTexture(ref metalness, ref metalnessSource, ref metalnessPriority, rgbmMetalness, "metalness", "alpha(" + fileName + ")", DerivedPriority, props.LogFunc);
                     continue;
                 }
 
                 if (name.EndsWith(AlbedoNomenclature) || name.EndsWith(AlbedoAltNomenclature))
                 {
-                    albedo = LoadImage(file);
-                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, albedo);
+                    FastBitmap candidate = LoadImage(file);
+                    LogSourceReport(file, name.EndsWith(AlbedoNomenclature) ? AlbedoNomenclature : AlbedoAltNomenclature, "RGB=albedo", candidate, props.LogFunc);
+                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, candidate);
+                    TryAssignTexture(ref albedo, ref albedoSource, ref albedoPriority, candidate, "albedo", fileName, ExplicitPriority, props.LogFunc);
                     continue;
                 }
 
                 if (name.EndsWith(AmbientOcclusionNomenclature) || name.EndsWith(AmbientOcclusionAltNomenclature))
                 {
-                    ambientOcclusion = LoadImage(file);
-                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, ambientOcclusion);
+                    FastBitmap candidate = LoadImage(file);
+                    LogSourceReport(file, name.EndsWith(AmbientOcclusionNomenclature) ? AmbientOcclusionNomenclature : AmbientOcclusionAltNomenclature, "grayscale/RGB=AO", candidate, props.LogFunc);
+                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, candidate);
+                    TryAssignTexture(ref ambientOcclusion, ref ambientOcclusionSource, ref ambientOcclusionPriority, candidate, "AO", fileName, ExplicitPriority, props.LogFunc);
                     continue;
                 }
 
                 if (name.EndsWith(RoughnessNomenclature))
                 {
-                    roughness = LoadImage(file);
-                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, roughness);
+                    FastBitmap candidate = LoadImage(file);
+                    LogSourceReport(file, RoughnessNomenclature, "grayscale/RGB=roughness, inverted to gloss", candidate, props.LogFunc);
+                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, candidate);
+                    TryAssignTexture(ref roughness, ref roughnessSource, ref roughnessPriority, candidate, "roughness", fileName, ExplicitPriority, props.LogFunc);
                     continue;
                 }
 
                 if (name.EndsWith(GlossNomenclature))
                 {
-                    gloss = LoadImage(file);
-                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, gloss);
+                    FastBitmap candidate = LoadImage(file);
+                    LogSourceReport(file, GlossNomenclature, "grayscale/RGB=gloss", candidate, props.LogFunc);
+                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, candidate);
+                    TryAssignTexture(ref gloss, ref glossSource, ref glossPriority, candidate, "gloss", fileName, ExplicitPriority, props.LogFunc);
                     continue;
                 }
 
                 if (name.EndsWith(MetalnessNomenclature) || name.EndsWith(MetalnessAltNomenclature))
                 {
-                    metalness = LoadImage(file);
-                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, metalness);
+                    FastBitmap candidate = LoadImage(file);
+                    LogSourceReport(file, name.EndsWith(MetalnessNomenclature) ? MetalnessNomenclature : MetalnessAltNomenclature, "grayscale/RGB=metalness", candidate, props.LogFunc);
+                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, candidate);
+                    TryAssignTexture(ref metalness, ref metalnessSource, ref metalnessPriority, candidate, "metalness", fileName, ExplicitPriority, props.LogFunc);
                     continue;
                 }
 
                 if (name.EndsWith(NormalNomenclature))
                 {
-                    normal = LoadImage(file);
-                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, normal);
+                    FastBitmap candidate = LoadImage(file);
+                    LogSourceReport(file, NormalNomenclature, "RGB=normal", candidate, props.LogFunc);
+                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, candidate);
+                    TryAssignTexture(ref normal, ref normalSource, ref normalPriority, candidate, "normal", fileName, ExplicitPriority, props.LogFunc);
                     continue;
                 }
 
                 if (name.EndsWith(EmissiveNomenclature))
                 {
-                    emissive = LoadImage(file);
-                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, emissive);
+                    FastBitmap candidate = LoadImage(file);
+                    LogSourceReport(file, EmissiveNomenclature, "RGB=emissive", candidate, props.LogFunc);
+                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, candidate);
+                    TryAssignTexture(ref emissive, ref emissiveSource, ref emissivePriority, candidate, "emissive", fileName, ExplicitPriority, props.LogFunc);
                 }
 
                 if (name.EndsWith(AlphatestNomenclature))
                 {
-                    alphatestOpacity = LoadImage(file);
-                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, alphatestOpacity);
+                    FastBitmap candidate = LoadImage(file);
+                    LogSourceReport(file, AlphatestNomenclature, "grayscale/RGB=alphatest opacity", candidate, props.LogFunc);
+                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, candidate);
+                    TryAssignTexture(ref alphatestOpacity, ref alphatestOpacitySource, ref alphatestOpacityPriority, candidate, "alphatest opacity", fileName, ExplicitPriority, props.LogFunc);
                 }
 
                 if (name.EndsWith(TranslucentNomenclature))
                 {
-                    translucentOpacity = LoadImage(file);
-                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, translucentOpacity);
+                    FastBitmap candidate = LoadImage(file);
+                    LogSourceReport(file, TranslucentNomenclature, "grayscale/RGB=translucent opacity", candidate, props.LogFunc);
+                    SetBiggestWidthAndHeight(ref biggestWidth, ref biggestHeight, candidate);
+                    TryAssignTexture(ref translucentOpacity, ref translucentOpacitySource, ref translucentOpacityPriority, candidate, "translucent opacity", fileName, ExplicitPriority, props.LogFunc);
                 }
+            }
+
+            if (gloss != null && roughness != null)
+            {
+                props.LogFunc?.Invoke("Precedence: gloss using " + glossSource + "; roughness " + roughnessSource + " is ignored because a gloss map is present.");
             }
 
             //resolve opacity mode (prefer alphatest if both are present)
@@ -703,6 +1049,7 @@ namespace mwb_materials
 
                 if (translucentOpacity != null)
                 {
+                    props.LogFunc?.Invoke("Precedence: opacity using alphatest " + alphatestOpacitySource + "; ignoring translucent " + translucentOpacitySource + ".");
                     translucentOpacity.Dispose();
                 }
             }
@@ -711,6 +1058,21 @@ namespace mwb_materials
                 opacity = translucentOpacity;
                 opacityMode = OpacityMode.Translucent;
             }
+
+            string glossSummary = gloss != null
+                ? glossSource
+                : roughness != null ? "inverted roughness(" + roughnessSource + ")" : null;
+            string opacitySummary = opacityMode == OpacityMode.Alphatest
+                ? "alphatest " + alphatestOpacitySource
+                : opacityMode == OpacityMode.Translucent ? "translucent " + translucentOpacitySource : null;
+
+            props.LogFunc?.Invoke("Texture summary: albedo: " + DescribeTextureSource(albedoSource) +
+                ", metalness: " + DescribeTextureSource(metalnessSource) +
+                ", normal: " + DescribeTextureSource(normalSource) +
+                ", gloss: " + DescribeTextureSource(glossSummary) +
+                ", AO: " + DescribeTextureSource(ambientOcclusionSource) +
+                ", opacity: " + DescribeTextureSource(opacitySummary) +
+                ", emissive: " + DescribeTextureSource(emissiveSource));
 
             //resize textures
             biggestWidth = Math.Min(props.ClampSize, biggestWidth);
@@ -810,6 +1172,15 @@ namespace mwb_materials
             FastBitmap sourceExponent = await exponentTask;
             Color averageMetallicColor = await getMetallicColor;
             double averageRoughness = await getAverageRoughness;
+            IntermediateTextureSet intermediates = null;
+
+            if (props.bKeepIntermediates)
+            {
+                intermediates = new IntermediateTextureSet(
+                    CloneFastBitmap(ambientOcclusion),
+                    CloneFastBitmap((gloss != null) ? gloss : roughness),
+                    CloneFastBitmap(metalness));
+            }
 
             //stop edits
             albedo?.StopAndDispose();
@@ -820,7 +1191,7 @@ namespace mwb_materials
             normal?.StopAndDispose();
             opacity?.StopAndDispose();
 
-            return new SourceTextureSet(sourceAlbedo?.Source, sourceExponent?.Source, sourceNormal?.Source, emissive?.Source, averageMetallicColor, averageRoughness, opacityMode);
+            return new SourceTextureSet(sourceAlbedo?.Source, sourceExponent?.Source, sourceNormal?.Source, emissive?.Source, averageMetallicColor, averageRoughness, opacityMode, intermediates);
         }
     }
 }

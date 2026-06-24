@@ -35,6 +35,12 @@
     <Setting Name="BatchIncludeFolders" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">False</Value>
     </Setting>
+    <Setting Name="KeepIntermediates" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="UseModelMaterialNames" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
     <Setting Name="AlbedoCompression" Type="System.String" Scope="User">
       <Value Profile="(Default)">DXT5</Value>
     </Setting>
