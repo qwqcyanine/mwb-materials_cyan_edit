@@ -1,0 +1,16 @@
+name = "Default"
+
+[phong]
+"$phongboost" = "1"
+"$phongalbedotint" = "1"
+"$phongalbedoboost" = "10"
+"$phongfresnelranges" = "[1 0.1 0]"
+
+[rimlight]
+"$rimlightexponent" = "100"
+"$rimmask" = "1"
+"$rimlightboost" = "1"
+
+[proxies.MwEnvMapTint]
+"min" = "0"
+"max" = "1"

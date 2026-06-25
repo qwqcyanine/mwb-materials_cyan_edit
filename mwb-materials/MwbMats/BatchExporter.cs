@@ -28,6 +28,7 @@ namespace mwb_materials.MwbMats
             public bool bKeepIntermediates { get; internal set; }
             public bool bUseModelMaterialNames { get; internal set; }
             public float AlphatestReference { get; internal set; }
+            public VmtPreset VmtPreset { get; internal set; }
             public Action<string> LogFunc { get; internal set; }
         }
 
@@ -321,7 +322,7 @@ namespace mwb_materials.MwbMats
                 }
 
                 //generate vmt
-                VmtGenerator.Generate(jobOutputPath, job.VmtFileName, vmtValues, movePath);
+                VmtGenerator.Generate(jobOutputPath, job.VmtFileName, vmtValues, movePath, props.VmtPreset, props.LogFunc);
             }
             finally
             {

@@ -1,0 +1,43 @@
+# To make a new preset, just copy this file and save it as a new .toml file in this folder.
+name = "Example preset"
+
+# Having this section turns on the "$phong" (specular reflection) effect.
+# Change 'enabled = true' to 'false' if you want to turn it off completely.
+[phong]
+enabled = true
+"$phongboost" = "1"                     # Brightness of the reflection highlight
+"$phongalbedotint" = "1"                # Allows the material's color to tint the reflection
+"$phongalbedoboost" = "10"              # Boosts the color tint intensity
+"$phongfresnelranges" = "[1 0.1 0]"     # Controls shininess at different viewing angles
+
+# Having this section turns on a subtle light around the object's edges.
+# Change 'enabled = true' to 'false' to turn it off.
+[rimlight]
+enabled = true
+"$rimlightexponent" = "100"             # How sharp or tight the edge light is
+"$rimmask" = "1"                        # Uses a texture mask to control where the rimlight appears
+"$rimlightboost" = "1"                  # Brightness of the edge light
+
+# This controls how the material reflects the surrounding world.
+# The tool automatically handles "$envmap", so you can't change that here.
+[envmap]
+# If omitted, the tool generates "$envmaptint" from the texture's metalness/color.
+# This also syncs with the MWB proxy color below.
+"$envmaptint" = "[0.329 0.329 0.325]"
+
+# You can add any extra material settings you want here, but they must start with a "$" sign.
+[custom]
+"$selfillum" = "1"                      # Makes the material glow / light up by itself
+"$selfillumtint" = "[1 1 1]"            # The color of the glow
+"$color2" = "[0 0 0]"                   # Modifies the base texture color tint
+"$blendtintbybasealpha" = "0"           # Uses the texture's alpha channel to control color tinting
+
+[proxies.MwEnvMapTint]
+"min" = "0"                             # Minimum allowed reflection brightness
+"max" = "1"                             # Maximum allowed reflection brightness
+
+# Do not add these to this file. The tool handles them automatically,
+# so trying to change them here will be ignored:
+# "$basetexture", "$bumpmap", "$phongexponenttexture", "$envmap",
+# "$normalmapalphaenvmapmask", "$detail", "$detailscale",
+# "$detailblendmode", "$alphatest", "$alphatestreference", "$translucent"

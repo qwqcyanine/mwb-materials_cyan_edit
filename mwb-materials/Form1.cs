@@ -27,6 +27,9 @@ namespace mwb_materials
         private CheckBox InvertNormalBlueCheck;
         private CheckBox KeepIntermediatesCheck;
         private CheckBox UseModelMaterialNamesCheck;
+        private ComboBox VmtPresetComboBox;
+        private Button RefreshVmtPresetsButton;
+        private List<VmtPreset> VmtPresets = new List<VmtPreset>();
         private ContextMenuStrip TitleBarMenu;
         private bool bLoadingSettings;
 
@@ -52,16 +55,23 @@ namespace mwb_materials
         private void ModernizeLayout()
         {
             AutoSize = false;
-            ClientSize = new Size(520, 715);
+            ClientSize = new Size(520, 815);
             Padding = new Padding(12);
 
             GroupBox settingsGroup = GetGroupBox("Settings");
             GroupBox vtfsGroup = GetGroupBox("VTFs");
             GroupBox batchGroup = GetGroupBox("Batch");
+            GroupBox presetGroup = new GroupBox()
+            {
+                Text = "VMT preset",
+                Padding = new Padding(8)
+            };
+            Controls.Add(presetGroup);
 
             LayoutGroup(settingsGroup, 12, 12, 496, 234);
             LayoutGroup(vtfsGroup, 12, 256, 496, 130);
             LayoutGroup(batchGroup, 12, 398, 496, 134);
+            LayoutGroup(presetGroup, 12, 544, 496, 58);
 
             AoCheck.SetBounds(8, 19, 220, 20);
             OpenGlNormalCheck.SetBounds(8, 43, 240, 20);
@@ -112,6 +122,25 @@ namespace mwb_materials
             };
             UseModelMaterialNamesCheck.SetBounds(10, 93, 225, 20);
             batchGroup.Controls.Add(UseModelMaterialNamesCheck);
+
+            VmtPresetComboBox = new ComboBox()
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                FormattingEnabled = true
+            };
+            VmtPresetComboBox.SetBounds(10, 23, 366, 21);
+            presetGroup.Controls.Add(VmtPresetComboBox);
+
+            RefreshVmtPresetsButton = new Button()
+            {
+                AutoSize = false,
+                Text = "Refresh",
+                UseVisualStyleBackColor = true
+            };
+            RefreshVmtPresetsButton.SetBounds(386, 21, 100, 25);
+            RefreshVmtPresetsButton.Click += (sender, args) => RefreshVmtPresets();
+            presetGroup.Controls.Add(RefreshVmtPresetsButton);
+
             FolderButton.Dock = DockStyle.None;
             FolderButton.SetBounds(252, 40, 236, 42);
         }
@@ -269,7 +298,7 @@ namespace mwb_materials
                 Text = "Console",
                 Padding = new Padding(8)
             };
-            consoleGroup.SetBounds(12, 544, 496, 142);
+            consoleGroup.SetBounds(12, 614, 496, 172);
 
             ConsoleTextBox = new TextBox()
             {
@@ -377,6 +406,7 @@ namespace mwb_materials
                         bExponentMipMaps = ExponentMipMapsCheck.Checked,
                         bKeepIntermediates = KeepIntermediatesCheck.Checked,
                         bUseModelMaterialNames = UseModelMaterialNamesCheck.Checked,
+                        VmtPreset = GetSelectedVmtPreset(),
                         AlphatestReference = AlphatestReferenceTrackBar.Value / 100.0f,
                         GenerateProps = props,
                         LogFunc = AppendConsoleLine
@@ -466,6 +496,7 @@ namespace mwb_materials
             ClampComboBox.Items.AddRange(new string[] { "4096", "2048", "1024", "512" });
             ClampComboBox.SelectedIndex = 0;
 
+            LoadVmtPresets();
             LoadSettings();
             RegisterSettingsEvents();
 
@@ -479,6 +510,8 @@ namespace mwb_materials
             ToolTip.SetToolTip(InvertNormalBlueCheck, "Invert the blue channel of the normal map");
             ToolTip.SetToolTip(KeepIntermediatesCheck, "Save pre-VTFCmd temp files and extracted channel textures in temp_debug");
             ToolTip.SetToolTip(UseModelMaterialNamesCheck, "Use SMD material names and glTF/GLB texture bindings when available");
+            ToolTip.SetToolTip(VmtPresetComboBox, "VMT preset loaded from the presets folder next to the executable");
+            ToolTip.SetToolTip(RefreshVmtPresetsButton, "Reload VMT presets from disk");
         }
 
         private void LoadSettings()
@@ -505,6 +538,7 @@ namespace mwb_materials
                 SetComboBoxValue(NormalCompression, settings.NormalCompression, VtfCmdInterface.FormatRGBA8888);
                 SetComboBoxValue(ExponentCompression, settings.ExponentCompression, VtfCmdInterface.FormatDXT5);
                 SetComboBoxValue(ClampComboBox, settings.ClampSize, "4096");
+                SetPresetComboBoxValue(settings.VmtPreset);
 
                 AoStrengthTrackBar.Value = Math.Min(Math.Max(settings.AoAlbedoStrength, AoStrengthTrackBar.Minimum), AoStrengthTrackBar.Maximum);
                 UpdateAoStrengthLabel();
@@ -544,6 +578,7 @@ namespace mwb_materials
                 SetComboBoxValue(NormalCompression, VtfCmdInterface.FormatRGBA8888, VtfCmdInterface.FormatRGBA8888);
                 SetComboBoxValue(ExponentCompression, VtfCmdInterface.FormatDXT5, VtfCmdInterface.FormatDXT5);
                 SetComboBoxValue(ClampComboBox, "4096", "4096");
+                SetPresetComboBoxValue(string.Empty);
 
                 AoStrengthTrackBar.Value = 100;
                 UpdateAoStrengthLabel();
@@ -577,6 +612,7 @@ namespace mwb_materials
             NormalCompression.SelectedIndexChanged += SaveSettingsOnChange;
             ExponentCompression.SelectedIndexChanged += SaveSettingsOnChange;
             ClampComboBox.SelectedIndexChanged += SaveSettingsOnChange;
+            VmtPresetComboBox.SelectedIndexChanged += SaveSettingsOnChange;
 
             AoStrengthTrackBar.ValueChanged += (sender, args) =>
             {
@@ -595,6 +631,54 @@ namespace mwb_materials
         {
             string selectedValue = comboBox.Items.Contains(value) ? value : fallback;
             comboBox.SelectedItem = selectedValue;
+        }
+
+        private void LoadVmtPresets(string preferredPresetId = null)
+        {
+            VmtPresets = VmtPresetLoader.LoadPresets(AppDomain.CurrentDomain.BaseDirectory, AppendConsoleLine);
+            VmtPresetComboBox.Items.Clear();
+
+            foreach (VmtPreset preset in VmtPresets)
+            {
+                VmtPresetComboBox.Items.Add(preset);
+            }
+
+            SetPresetComboBoxValue(preferredPresetId ?? string.Empty);
+        }
+
+        private void RefreshVmtPresets()
+        {
+            string presetId = GetSelectedVmtPreset().Id;
+            bool wasLoadingSettings = bLoadingSettings;
+
+            bLoadingSettings = true;
+
+            try
+            {
+                LoadVmtPresets(presetId);
+            }
+            finally
+            {
+                bLoadingSettings = wasLoadingSettings;
+            }
+
+            SaveSettings();
+            AppendConsoleLine("Reloaded VMT presets.");
+        }
+
+        private VmtPreset GetSelectedVmtPreset()
+        {
+            return VmtPresetComboBox.SelectedItem as VmtPreset ?? VmtPreset.Default;
+        }
+
+        private void SetPresetComboBoxValue(string presetId)
+        {
+            VmtPreset selected = string.IsNullOrEmpty(presetId)
+                ? VmtPresets.FirstOrDefault(VmtPresetLoader.IsDefaultPreset)
+                : VmtPresets.FirstOrDefault(preset => string.Equals(preset.Id, presetId, StringComparison.OrdinalIgnoreCase));
+
+            selected = selected ?? VmtPresets.FirstOrDefault(VmtPresetLoader.IsDefaultPreset) ?? VmtPresets.FirstOrDefault() ?? VmtPreset.Default;
+            VmtPresetComboBox.SelectedItem = selected;
         }
 
         private void SaveSettingsOnChange(object sender, EventArgs e)
@@ -630,6 +714,7 @@ namespace mwb_materials
             settings.AlbedoMipMaps = AlbedoMipMapsCheck.Checked;
             settings.NormalMipMaps = NormalMipMapsCheck.Checked;
             settings.ExponentMipMaps = ExponentMipMapsCheck.Checked;
+            settings.VmtPreset = GetSelectedVmtPreset().Id;
             settings.Save();
         }
 

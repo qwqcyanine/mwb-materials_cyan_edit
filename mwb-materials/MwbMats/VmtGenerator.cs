@@ -22,7 +22,7 @@ namespace mwb_materials.MwbMats
             return Encoding.UTF8.GetString(VmtBytes);
         }
 
-        public static void Generate(string path, string name, Dictionary<string, object> values, string movePath)
+        public static void Generate(string path, string name, Dictionary<string, object> values, string movePath, VmtPreset preset = null, Action<string> logFunc = null)
         {
             SanitizeName(ref name);
             string content = GetVmtContent();
@@ -31,6 +31,8 @@ namespace mwb_materials.MwbMats
             {
                 content = content.Replace("${" + pair.Key + "}", pair.Value.ToString());
             }
+
+            content = VmtPresetApplier.Apply(content, preset, logFunc);
 
             byte[] newBytes = Encoding.UTF8.GetBytes(content);
             string vmtName = Path.GetFileNameWithoutExtension(name) + ".vmt";

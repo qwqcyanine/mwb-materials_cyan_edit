@@ -250,5 +250,17 @@ namespace mwb_materials.Properties {
                 this["ExponentMipMaps"] = value;
             }
         }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string VmtPreset {
+            get {
+                return ((string)(this["VmtPreset"]));
+            }
+            set {
+                this["VmtPreset"] = value;
+            }
+        }
     }
 }
