@@ -29,6 +29,7 @@ namespace mwb_materials
         private CheckBox UseModelMaterialNamesCheck;
         private ComboBox VmtPresetComboBox;
         private Button RefreshVmtPresetsButton;
+        private Button CopyVmtRefsButton;
         private List<VmtPreset> VmtPresets = new List<VmtPreset>();
         private ContextMenuStrip TitleBarMenu;
         private bool bLoadingSettings;
@@ -143,6 +144,22 @@ namespace mwb_materials
 
             FolderButton.Dock = DockStyle.None;
             FolderButton.SetBounds(252, 40, 236, 42);
+
+            CopyVmtRefsButton = new Button()
+            {
+                AutoSize = false,
+                Text = "Copy VMT Refs",
+                UseVisualStyleBackColor = true
+            };
+            CopyVmtRefsButton.SetBounds(252, 90, 236, 32);
+            CopyVmtRefsButton.Click += (sender, args) =>
+            {
+                using (VmtReferenceCopyForm form = new VmtReferenceCopyForm())
+                {
+                    form.ShowDialog(this);
+                }
+            };
+            batchGroup.Controls.Add(CopyVmtRefsButton);
         }
 
         private void AddTitleBarMenu()
